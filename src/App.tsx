@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { TitleGlobe } from './TitleGlobe'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'YOUR_MAPBOX_ACCESS_TOKEN'
 
@@ -16,9 +17,7 @@ const THEME_OPTIONS: ThemeOption[] = [
     property: 'DESIG_TYPE',
     colors: {
       National: '#22c55e',
-      International: '#3b82f6',
-      'Regional/Local': '#f59e0b',
-      'Not Reported': '#6b7280'
+      International: '#3b82f6'
     }
   },
   {
@@ -42,10 +41,8 @@ const THEME_OPTIONS: ThemeOption[] = [
     property: 'STATUS',
     colors: {
       Designated: '#22c55e',
-      Proposed: '#eab308',
-      Inscribed: '#3b82f6',
-      Adopted: '#8b5cf6',
-      Established: '#14b8a6'
+      Established: '#14b8a6',
+      Inscribed: '#3b82f6'
     }
   },
   {
@@ -54,14 +51,10 @@ const THEME_OPTIONS: ThemeOption[] = [
     colors: {
       'Federal or national ministry or agency': '#3b82f6',
       'Sub-national ministry or agency': '#6366f1',
-      'Government-delegated management': '#8b5cf6',
       'Collaborative governance': '#a855f7',
       'Joint governance': '#d946ef',
       'Individual landowners': '#ec4899',
       'Non-profit organisations': '#f43f5e',
-      'For-profit organisations': '#ef4444',
-      'Indigenous peoples': '#f97316',
-      'Local communities': '#eab308',
       'Not Reported': '#6b7280'
     }
   }
@@ -70,8 +63,8 @@ const THEME_OPTIONS: ThemeOption[] = [
 const DEFAULT_COLOR = '#22c55e'
 
 // Vector tile server configuration
-const TILE_SERVER_URL = 'http://localhost:8080'
-const SOURCE_LAYER = 'geo' // Adjust this to match your vector tile layer name
+const TILE_SERVER_URL = import.meta.env.VITE_TILE_SERVER_URL || 'http://localhost:8080'
+const SOURCE_LAYER = 'geo' // Must match your vector tile layer name
 
 // Custom dark purple style
 const PURPLE_STYLE: mapboxgl.StyleSpecification = {
@@ -268,26 +261,35 @@ const BASEMAP_OPTIONS: BasemapOption[] = [
 const CATEGORY_OPTIONS = [
   { value: 'all', label: 'All Categories' },
   { value: 'National', label: 'National' },
-  { value: 'International', label: 'International' },
-  { value: 'Regional/Local', label: 'Regional/Local' },
-  { value: 'Not Reported', label: 'Not Reported' }
+  { value: 'International', label: 'International' }
 ]
 
 const DESIGNATION_OPTIONS = [
   { value: 'all', label: 'All Designations' },
   { value: 'National Park', label: 'National Park' },
-  { value: 'National Monument', label: 'National Monument' },
-  { value: 'Wilderness Area', label: 'Wilderness Area' },
-  { value: 'National Wildlife Refuge', label: 'National Wildlife Refuge' },
-  { value: 'National Forest', label: 'National Forest' },
   { value: 'Marine Protected Area', label: 'Marine Protected Area' },
-  { value: 'State Park', label: 'State Park' },
-  { value: 'Provincial Park', label: 'Provincial Park' },
-  { value: 'World Heritage Site (natural or mixed)', label: 'World Heritage Site' },
-  { value: 'Biosphere Reserve', label: 'Biosphere Reserve' },
-  { value: 'Nature Reserve', label: 'Nature Reserve' },
-  { value: 'Wildlife Sanctuary', label: 'Wildlife Sanctuary' }
+  { value: 'Conservation Area', label: 'Conservation Area' },
+  { value: 'Conservation Easement', label: 'Conservation Easement' },
+  { value: 'Conservation Park', label: 'Conservation Park' },
+  { value: 'Conservation Preserve', label: 'Conservation Preserve' },
+  { value: 'Conservation Reserve', label: 'Conservation Reserve' },
+  { value: 'Ecological Reserve', label: 'Ecological Reserve' },
+  { value: 'Forest Preserve', label: 'Forest Preserve' },
+  { value: 'Forest Reserve', label: 'Forest Reserve' },
+  { value: 'Bird Sanctuary', label: 'Bird Sanctuary' },
+  { value: 'Game Preserve', label: 'Game Preserve' },
+  { value: 'Arboretum', label: 'Arboretum' },
+  { value: 'Botanical Reserve', label: 'Botanical Reserve' }
 ]
+
+// Helper function to lighten a hex color
+function lightenColor(hex: string, amount: number = 0.3): string {
+  const num = parseInt(hex.replace('#', ''), 16)
+  const r = Math.min(255, Math.round(((num >> 16) & 0xff) + (255 - ((num >> 16) & 0xff)) * amount))
+  const g = Math.min(255, Math.round(((num >> 8) & 0xff) + (255 - ((num >> 8) & 0xff)) * amount))
+  const b = Math.min(255, Math.round((num & 0xff) + (255 - (num & 0xff)) * amount))
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
+}
 
 function buildColorExpression(theme: ThemeOption): mapboxgl.Expression {
   const entries: (string | string[])[] = ['match', ['get', theme.property]]
@@ -298,17 +300,26 @@ function buildColorExpression(theme: ThemeOption): mapboxgl.Expression {
   return entries as mapboxgl.Expression
 }
 
+function buildOutlineColorExpression(theme: ThemeOption): mapboxgl.Expression {
+  const entries: (string | string[])[] = ['match', ['get', theme.property]]
+  for (const [value, color] of Object.entries(theme.colors)) {
+    entries.push(value, lightenColor(color, 0.4))
+  }
+  entries.push(lightenColor(DEFAULT_COLOR, 0.4))
+  return entries as mapboxgl.Expression
+}
+
 function App() {
   const mapContainer = useRef<HTMLDivElement | null>(null)
   const map = useRef<mapboxgl.Map | null>(null)
   const popup = useRef<mapboxgl.Popup | null>(null)
   const hoveredId = useRef<string | number | null>(null)
 
-  const [selectedTheme, setSelectedTheme] = useState<number>(0)
+  const [selectedTheme, setSelectedTheme] = useState<number>(1)
   const [fillOpacity, setFillOpacity] = useState<number>(0.5)
   const [terrainExaggeration, setTerrainExaggeration] = useState<number>(1.5)
   const [selectedCategory, setSelectedCategory] = useState<string>('National')
-  const [selectedDesignation, setSelectedDesignation] = useState<string>('all')
+  const [selectedDesignation, setSelectedDesignation] = useState<string>('National Park')
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category)
@@ -318,9 +329,11 @@ function App() {
   const [selectedBasemap, setSelectedBasemap] = useState<string>('purple')
   const [hoveredFeature, setHoveredFeature] = useState<Record<string, unknown> | null>(null)
 
+  // Basemap dropdown visibility
+  const [showBasemapMenu, setShowBasemapMenu] = useState(false)
+
   // Collapsible section state
   const [sectionsOpen, setSectionsOpen] = useState({
-    basemap: false,
     filters: true,
     style: true,
     display: false
@@ -366,7 +379,7 @@ function App() {
       })
     }
 
-    // Add vector tile source if not present
+    // Add PMTiles source if not present
     if (!m.getSource('national-parks')) {
       m.addSource('national-parks', {
         type: 'vector',
@@ -421,14 +434,14 @@ function App() {
         'source-layer': SOURCE_LAYER,
         filter: filter ?? undefined,
         paint: {
-          'line-color': '#ffffff',
+          'line-color': buildOutlineColorExpression(theme),
           'line-width': [
             'case',
             ['boolean', ['feature-state', 'hover'], false],
             2,
-            0.5
+            0.8
           ],
-          'line-opacity': 0.6
+          'line-opacity': 0.9
         }
       })
     }
@@ -462,6 +475,11 @@ function App() {
       Math.min(fillOpacity + 0.3, 1),
       fillOpacity
     ])
+
+    // Update outline color to match fill but brighter
+    if (m.getLayer('parks-outline')) {
+      m.setPaintProperty('parks-outline', 'line-color', buildOutlineColorExpression(theme))
+    }
   }, [selectedTheme, fillOpacity])
 
   const updateTerrain = useCallback(() => {
@@ -522,10 +540,10 @@ function App() {
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: initialBasemap.style,
-      center: [-110, 45],
-      zoom: 5,
-      pitch: 45,
-      bearing: -10,
+      center: [-98.5, 39.5],
+      zoom: 3.5,
+      pitch: 30,
+      bearing: 0,
       attributionControl: false
     })
 
@@ -590,6 +608,7 @@ function App() {
       if (!e.features || e.features.length === 0) return
 
       const feature = e.features[0]
+      console.log(feature);
       const props = feature.properties as Record<string, unknown>
       const coords = e.lngLat
 
@@ -693,33 +712,46 @@ function App() {
         )}
       </div>
 
-      {/* Control Panel - Top Right */}
+      {/* Basemap Control - Floating */}
+      <div className="basemap-control">
+        <button
+          className={`basemap-toggle ${showBasemapMenu ? 'active' : ''}`}
+          onClick={() => setShowBasemapMenu(!showBasemapMenu)}
+          aria-label="Change basemap"
+          title="Change basemap"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+            <line x1="8" y1="2" x2="8" y2="18" />
+            <line x1="16" y1="6" x2="16" y2="22" />
+          </svg>
+        </button>
+        {showBasemapMenu && (
+          <div className="basemap-menu">
+            {BASEMAP_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                className={`basemap-menu-item ${selectedBasemap === opt.id ? 'active' : ''}`}
+                onClick={() => {
+                  handleBasemapChange(opt.id)
+                  setShowBasemapMenu(false)
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Control Panel - Top Left */}
       <div className={`control-panel ${showControls ? 'mobile-visible' : ''}`}>
         <button className="panel-close" onClick={() => setShowControls(false)} aria-label="Close">×</button>
-        {/* Basemap Section */}
-        <div className="section">
-          <button
-            className={`section-header ${sectionsOpen.basemap ? 'open' : ''}`}
-            onClick={() => toggleSection('basemap')}
-          >
-            <span>Basemap</span>
-            <span className="section-icon">{sectionsOpen.basemap ? '−' : '+'}</span>
-          </button>
-          {sectionsOpen.basemap && (
-            <div className="section-content">
-              <div className="basemap-grid">
-                {BASEMAP_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.id}
-                    className={`basemap-btn ${selectedBasemap === opt.id ? 'active' : ''}`}
-                    onClick={() => handleBasemapChange(opt.id)}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+        
+        {/* Title Header */}
+        <div className="panel-title">
+          <TitleGlobe size={28} />
+          <span className="panel-title-text">SilkyMaps</span>
         </div>
 
         {/* Filters Section */}
