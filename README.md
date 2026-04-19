@@ -1,32 +1,22 @@
-# Silky Maps - Protected Areas Visualization
+# Silky Maps
 
-An interactive 3D map application for visualizing the World Database on Protected Areas (WDPA) data. Built with React, TypeScript, and Mapbox GL JS.
+A personal sandbox for **exploring aesthetic digital cartographic experiences** through the World Database on Protected Areas (WDPA) as the underlying dataset. Every park on Earth — ~270k polygons — becomes a canvas for trying out themed basemaps, custom shading palettes, terrain exaggeration, and selection treatments. The same Mt Rainier silhouette below renders eight different ways without changing a single line of style code at runtime; the goal is to make the map *feel* different rather than just *look* different.
 
-## Features
-
-- Interactive 3D map with terrain exaggeration
-- Multiple basemap options including a fully-themable custom basemap
-- Four UI themes (Sage Forest, Dark Earth, Slate Mist, Botanica), each with a paired dark/light mode
-- Vector tile data served as a single PMTiles archive over HTTP range requests
-- Category and designation filters
-- Thematic styling by IUCN category, designation type, status, and governance
-- Click a park to show a polygon-clipped Mapbox satellite overlay (basemap shows through naturally outside the silhouette); "Full details" then layers a slow orbit tour on top
-- Collapsible control panels with smooth animations
-- Mobile-responsive design
-- Interactive popups with feature details
-
-## Themes
-
-Mt Rainier National Park selected, captured at the same camera (pitch 60°, bearing 25°) across all four themes in both dark and light modes. The satellite imagery inside the park silhouette is clipped on the canvas during stitching, so the surrounding basemap repaints with each theme without disturbing the overlay.
-
-| Theme | Dark | Light |
+| | Dark | Light |
 |---|---|---|
 | **Sage Forest** | ![Sage Forest dark](docs/screenshots/rainier-sage-forest-dark.png) | ![Sage Forest light](docs/screenshots/rainier-sage-forest-light.png) |
 | **Dark Earth** | ![Dark Earth dark](docs/screenshots/rainier-dark-earth-dark.png) | ![Dark Earth light](docs/screenshots/rainier-dark-earth-light.png) |
 | **Slate Mist** | ![Slate Mist dark](docs/screenshots/rainier-slate-mist-dark.png) | ![Slate Mist light](docs/screenshots/rainier-slate-mist-light.png) |
 | **Botanica** | ![Botanica dark](docs/screenshots/rainier-botanica-dark.png) | ![Botanica light](docs/screenshots/rainier-botanica-light.png) |
 
-These shots are reproducible: with `npm run dev` running on port 5173 and Playwright's chromium installed, `node scripts/capture-rainier.mjs` re-generates all eight files into `docs/screenshots/`.
+*Mount Rainier National Park, captured at the same camera (pitch 60°, bearing 25°) across the four themes in both modes. The satellite imagery inside the silhouette is pre-stitched and clipped to the polygon at fetch time, so the surrounding basemap repaints with each theme without disturbing the overlay. Re-generate with `node scripts/capture-rainier.mjs` (requires `npm run dev` and Playwright's chromium).*
+
+## What's interesting in here
+
+- **A hand-built themable basemap.** Four palettes (Sage Forest, Dark Earth, Slate Mist, Botanica), each with paired dark and light modes, generated from a single `UiPalette` token set. Every UI surface and every map layer (water, landcover, hillshade, contours, roads, labels, fog) reads from the same palette, so swapping themes repaints the entire screen — chrome and cartography — in step.
+- **Polygon-clipped satellite selection overlay.** Clicking a park pre-fetches Mapbox satellite tiles at the highest zoom whose covering grid fits in 4096px, stitches them into a single canvas, and clips the canvas to the park polygon during stitching. The result is a PNG with transparent edges shaped exactly like the silhouette — basemap shows through naturally outside the park, no separate mask layer, no LOD-swap flicker. "Full details" layers a slow orbit tour (90s/revolution) on top.
+- **Whole WDPA in one file.** ~270k polygons served as a single `.pmtiles` archive over HTTP range requests via Mapbox GL v3.21+'s native PMTiles support — no tile server, no `addProtocol` shim. Theming + filtering happen entirely client-side.
+- **Strict command-pattern for the map.** React components never call Mapbox GL directly; everything routes through `MapEngine.execute(MapCommand)`. Makes it easy to tear apart and re-skin the map without the visual layer leaking everywhere.
 
 ## Quick Start
 
