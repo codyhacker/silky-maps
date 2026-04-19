@@ -6,12 +6,27 @@ An interactive 3D map application for visualizing the World Database on Protecte
 
 - Interactive 3D map with terrain exaggeration
 - Multiple basemap options including a fully-themable custom basemap
+- Four UI themes (Sage Forest, Dark Earth, Slate Mist, Botanica), each with a paired dark/light mode
 - Vector tile data served as a single PMTiles archive over HTTP range requests
 - Category and designation filters
 - Thematic styling by IUCN category, designation type, status, and governance
+- Click a park to show a polygon-clipped Mapbox satellite overlay (basemap shows through naturally outside the silhouette); "Full details" then layers a slow orbit tour on top
 - Collapsible control panels with smooth animations
 - Mobile-responsive design
 - Interactive popups with feature details
+
+## Themes
+
+Mt Rainier National Park selected, captured at the same camera (pitch 60°, bearing 25°) across all four themes in both dark and light modes. The satellite imagery inside the park silhouette is clipped on the canvas during stitching, so the surrounding basemap repaints with each theme without disturbing the overlay.
+
+| Theme | Dark | Light |
+|---|---|---|
+| **Sage Forest** | ![Sage Forest dark](docs/screenshots/rainier-sage-forest-dark.png) | ![Sage Forest light](docs/screenshots/rainier-sage-forest-light.png) |
+| **Dark Earth** | ![Dark Earth dark](docs/screenshots/rainier-dark-earth-dark.png) | ![Dark Earth light](docs/screenshots/rainier-dark-earth-light.png) |
+| **Slate Mist** | ![Slate Mist dark](docs/screenshots/rainier-slate-mist-dark.png) | ![Slate Mist light](docs/screenshots/rainier-slate-mist-light.png) |
+| **Botanica** | ![Botanica dark](docs/screenshots/rainier-botanica-dark.png) | ![Botanica light](docs/screenshots/rainier-botanica-light.png) |
+
+These shots are reproducible: with `npm run dev` running on port 5173 and Playwright's chromium installed, `node scripts/capture-rainier.mjs` re-generates all eight files into `docs/screenshots/`.
 
 ## Quick Start
 
