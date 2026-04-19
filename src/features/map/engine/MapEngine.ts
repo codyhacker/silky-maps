@@ -150,6 +150,11 @@ export class MapEngine {
       this.addDataLayers()
     })
     this.registerMapEvents()
+
+    if (import.meta.env.DEV) {
+      ;(window as unknown as { __engine?: MapEngine; __store?: AppStore }).__engine = this
+      ;(window as unknown as { __engine?: MapEngine; __store?: AppStore }).__store = store
+    }
   }
 
   getMap(): mapboxgl.Map {

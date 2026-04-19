@@ -106,8 +106,32 @@ function lonLatToCanvasXY(
 }
 
 // Build a single Path2D containing every ring of every polygon in the
-// feature. Used as a clip region with the `evenodd` fill rule so holes and
-// MultiPolygon pieces compose naturally.
+// feature. Combined with `ctx.clip(path, 'nonzero')` this composes
+// MultiPolygons and holes correctly per the GeoJSON winding spec
+// (outer rings CCW → +1, holes CW → -1).
+//
+// Why nonzero and not evenodd:
+//   Tippecanoe slices polygons at vector-tile boundaries, so a single park
+//   that crosses a tile edge comes back as a MultiPolygon of adjacent
+//   pieces sharing that boundary. With evenodd a horizontal scanline
+//   crossing two adjacent polygons toggles in/out 4 times and leaves the
+//   second polygon's interior "outside" — manifesting as a thin
+//   tile-boundary-shaped strip of un-clipped (transparent) canvas inside
+//   what should be a fully-filled silhouette. nonzero counts winding so
+//   each disjoint CCW ring fills independently.
+//
+// To make nonzero behave correctly we explicitly re-wind each ring so
+// outer rings are CCW and inner rings (holes) are CW, regardless of how
+// the source data is wound. tippecanoe / vector-tile decoding does not
+// guarantee GeoJSON-spec winding.
+function ringSignedArea(ring: number[][]): number {
+  let a = 0
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    a += (ring[j][0] - ring[i][0]) * (ring[j][1] + ring[i][1])
+  }
+  return a / 2
+}
+
 function geometryToPath(
   feature: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>,
   range: TileRange,
@@ -118,12 +142,25 @@ function geometryToPath(
     : feature.geometry.coordinates
 
   for (const poly of polys) {
-    for (const ring of poly) {
+    for (let r = 0; r < poly.length; r++) {
+      const ring = poly[r]
       if (ring.length === 0) continue
-      const [x0, y0] = lonLatToCanvasXY(ring[0][0], ring[0][1], range)
+      const isOuter = r === 0
+      // GeoJSON spec: outer ring CCW (positive area in screen-y-down
+      // coordinates is CW; but lon/lat is y-up, so positive signed area =
+      // CCW). We want outer rings positive-area in lon/lat space.
+      const wantPositive = isOuter
+      const area = ringSignedArea(ring)
+      const reverse = wantPositive ? area < 0 : area > 0
+
+      const indices = reverse
+        ? Array.from({ length: ring.length }, (_, i) => ring.length - 1 - i)
+        : Array.from({ length: ring.length }, (_, i) => i)
+
+      const [x0, y0] = lonLatToCanvasXY(ring[indices[0]][0], ring[indices[0]][1], range)
       path.moveTo(x0, y0)
-      for (let i = 1; i < ring.length; i++) {
-        const [x, y] = lonLatToCanvasXY(ring[i][0], ring[i][1], range)
+      for (let i = 1; i < indices.length; i++) {
+        const [x, y] = lonLatToCanvasXY(ring[indices[i]][0], ring[indices[i]][1], range)
         path.lineTo(x, y)
       }
       path.closePath()
@@ -186,10 +223,10 @@ export async function stitchSatelliteTiles(
   // even at high latitudes / large parks.
   const polyPath = geometryToPath(geometry, range)
   ctx.save()
-  // evenodd handles GeoJSON Polygon-with-holes (outer ring + inner rings)
-  // and MultiPolygon (multiple disjoint pieces) in a single sub-pathed
-  // Path2D — outer rings fill, holes punch back through.
-  ctx.clip(polyPath, 'evenodd')
+  // nonzero (the canvas default) — see geometryToPath for why evenodd
+  // breaks on tippecanoe-sliced MultiPolygons. geometryToPath rewinds
+  // outer rings CCW and holes CW so winding numbers compose correctly.
+  ctx.clip(polyPath, 'nonzero')
 
   // Fetch all tiles in parallel via <img> (browser handles HTTP cache + CORS
   // for *.mapbox.com automatically). Drawing happens as each one resolves.
