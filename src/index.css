@@ -1275,8 +1275,24 @@ input[type="range"]:active::-webkit-slider-thumb {
 
   .theme-swatch-preview { width: 30px; height: 22px; }
 
-  /* sticky title still works inside the scroll container on mobile, but reset desktop border-radius */
-  .panel-title { border-radius: 8px; }
+  /* On mobile the title tap closes the drawer — chevron and × are redundant */
+  .panel-title-chevron { display: none; }
+  .control-panel .panel-close { display: none; }
+
+  /* Title acts as the dismiss handle — make it visually obvious */
+  .panel-title {
+    border-radius: 8px;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  /* Larger drag handle so it's clearly tappable */
+  .legend-panel::before,
+  .control-panel::before {
+    width: 48px;
+    height: 5px;
+    top: 10px;
+  }
 }
 
 @media (max-width: 480px) {

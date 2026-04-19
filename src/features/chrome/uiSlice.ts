@@ -16,7 +16,7 @@ interface UIState {
 
 const initialState: UIState = {
   showBasemapMenu: false,
-  sectionsOpen: { filters: true, style: true, display: false, appearance: false },
+  sectionsOpen: { filters: false, style: false, display: false, appearance: false },
   showControls: false,
   showLegend: false,
 }

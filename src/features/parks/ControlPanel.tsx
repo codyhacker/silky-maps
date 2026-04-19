@@ -57,9 +57,13 @@ export function ControlPanel() {
 
   return (
     <div className={`control-panel ${showControls ? 'mobile-visible' : ''}`}>
-      <button className="panel-close" onClick={() => dispatch(setShowControls(false))} aria-label="Close">×</button>
-
-      <div className="panel-title" onClick={() => setCollapsed(c => !c)}>
+      <div
+        className="panel-title"
+        onClick={() => {
+          if (window.innerWidth <= 768) dispatch(setShowControls(false))
+          else setCollapsed(c => !c)
+        }}
+      >
         <TitleGlobe size={28} />
         <span className="panel-title-text">SilkyMaps</span>
         <span className={`panel-title-chevron${collapsed ? ' collapsed' : ''}`}>▾</span>
