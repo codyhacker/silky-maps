@@ -11,9 +11,12 @@
   "dependencies": {
     "@amcharts/amcharts5": "^5.15.4",
     "@amcharts/amcharts5-geodata": "^5.1.5",
+    "@mapbox/mapbox-gl-style-spec": "^14.22.0",
+    "@reduxjs/toolkit": "^2.11.2",
     "mapbox-gl": "^3.0.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-redux": "^9.2.0"
   },
   "devDependencies": {
     "@types/mapbox-gl": "^3.4.1",
