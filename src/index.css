@@ -103,15 +103,6 @@ html, body {
   filter: var(--ctrl-icon-filter);
 }
 
-/* Basemap Control */
-.basemap-control {
-  position: absolute;
-  top: 110px;
-  right: 10px;
-  z-index: 10;
-}
-
-
 @keyframes menuSlideIn {
   from { opacity: 0; transform: translateY(-8px) scale(0.95); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -134,7 +125,11 @@ html, body {
   font-size: 13px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   z-index: 10;
-  max-height: calc(100vh - 40px);
+  /* Reserve ~170px at the bottom-left for the Mapbox NavigationControl +
+     FullscreenControl stack so they're never hidden behind a fully-expanded
+     ControlPanel. The panel still scrolls internally when its content
+     exceeds this height. */
+  max-height: calc(100vh - 180px);
   overflow-y: auto;
   animation: slideInLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -265,52 +260,113 @@ input[type="range"]:active::-webkit-slider-thumb {
   box-shadow: 0 2px 20px rgba(var(--slider-glow-rgb), 0.8);
 }
 
-/* Park Detail Panel */
+/* Park Detail Panel — desktop: docked top-right, ~1/3 viewport width.
+   Mapbox nav + fullscreen now live in the bottom-left, so the panel can
+   sit flush against the top edge. */
 .park-detail-panel {
   position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(110%);
-  width: min(500px, calc(100vw - 20px));
+  top: 10px;
+  right: 10px;
+  width: clamp(320px, 33vw, 400px);
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
   background: linear-gradient(160deg, rgba(var(--bg-deep-rgb), 0.97), rgba(var(--bg-rich-rgb), 0.95));
   backdrop-filter: blur(16px);
   border: 1px solid rgba(var(--accent-rgb), 0.25);
-  border-radius: 18px 18px 0 0;
-  padding: 20px 22px calc(28px + env(safe-area-inset-bottom));
+  border-radius: 16px;
+  padding: 18px 20px 20px;
   z-index: 30;
-  box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  transform: translateX(calc(100% + 24px));
   transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
   font-family: system-ui, -apple-system, sans-serif;
 }
 
 .park-detail-panel.visible {
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(0);
+}
+
+/* Hero image / placeholder — bleeds to the panel edges and rounds the top
+   corners. Negative margins counter the panel's 18px/20px padding. */
+.park-detail-hero {
+  margin: -18px -20px 14px;
+  height: 140px;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+  background: rgba(var(--bg-deep-rgb), 0.6);
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.18);
+}
+
+/* "Full detail" / "Show less" toggle that opens the long-form sections */
+.park-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 6px 10px 6px 12px;
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.park-detail-toggle:hover {
+  background: rgba(var(--accent-rgb), 0.22);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  color: var(--text-primary);
+}
+
+.park-detail-toggle-chevron {
+  transition: transform 0.2s ease;
+}
+
+.park-detail-toggle-chevron.open {
+  transform: rotate(180deg);
 }
 
 @media (max-width: 768px) {
+  /* Mobile: revert to bottom drawer — touch ergonomics > top-right docking */
   .park-detail-panel {
+    top: auto;
+    bottom: 0;
+    right: 0;
     left: 0;
     width: 100%;
-    transform: translateY(110%);
+    max-width: 100%;
+    max-height: 80vh;
     border-radius: 18px 18px 0 0;
+    padding: 20px 22px calc(28px + env(safe-area-inset-bottom));
+    transform: translateY(110%);
   }
 
   .park-detail-panel.visible {
     transform: translateY(0);
+  }
+
+  .park-detail-hero {
+    margin: -20px -22px 14px;
+    height: 160px;
+    border-radius: 18px 18px 0 0;
   }
 }
 
 /* Legend Panel */
 .legend-panel {
   position: absolute;
-  bottom: 30px;
+  bottom: 24px;
   right: 10px;
-  width: 200px;
+  width: 180px;
   background: linear-gradient(145deg, rgba(var(--bg-deep-rgb), 0.95), rgba(var(--bg-rich-rgb), 0.92));
   backdrop-filter: blur(12px);
   border: 1px solid rgba(var(--accent-rgb), 0.25);
-  border-radius: 14px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 10px 12px;
   color: var(--text-primary);
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 13px;
@@ -319,6 +375,73 @@ input[type="range"]:active::-webkit-slider-thumb {
   max-height: calc(100vh - 60px);
   overflow-y: auto;
   animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              padding 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              max-height 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Collapse / expand toggle header — full-width clickable bar */
+.legend-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: var(--text-light);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.legend-toggle:hover {
+  color: var(--text-primary);
+}
+
+.legend-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: inherit;
+}
+
+.legend-toggle-label > svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.legend-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.legend-panel:not(.collapsed) .legend-chevron {
+  transform: rotate(180deg);
+}
+
+.legend-content {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(var(--accent-rgb), 0.15);
+}
+
+/* Desktop-only collapsed state — shrinks to a small chip showing just the
+   header. On mobile, when the panel is shown via the toggle button it should
+   always render full content (the user explicitly opened it), so these rules
+   are scoped to the desktop breakpoint. */
+@media (min-width: 769px) {
+  .legend-panel.collapsed {
+    width: auto;
+  }
+  .legend-panel.collapsed .legend-content {
+    display: none;
+  }
 }
 
 @keyframes slideInRight {
@@ -549,8 +672,6 @@ input[type="range"]:active::-webkit-slider-thumb {
     background: rgba(var(--accent-rgb), 0.4);
     border-radius: 2px;
   }
-
-  .basemap-control { top: auto; bottom: calc(100px + env(safe-area-inset-bottom)); right: 16px; }
 
   input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
   input[type="range"] { height: 8px; }

@@ -1,7 +1,8 @@
 import { createSelector } from '@reduxjs/toolkit'
 import type { LayerSpecification, SourceSpecification } from 'mapbox-gl'
 import type { RootState } from '../../app/store'
-import { THEME_OPTIONS, buildColorExpression, buildOutlineColorExpression } from '../../shared/constants/themes'
+import { buildThemeOptions, buildColorExpression, buildOutlineColorExpression } from '../../shared/constants/themes'
+import { getUiTheme } from '../../shared/constants/uiThemes'
 
 const PMTILES_URL = import.meta.env.VITE_PMTILES_URL || 'http://localhost:8080/wdpa.pmtiles'
 const SOURCE_LAYER = 'geo'
@@ -17,12 +18,14 @@ export const selectAugmentationSpec = createSelector(
   [
     (s: RootState) => s.mapStyle.selectedTheme,
     (s: RootState) => s.mapStyle.fillOpacity,
+    (s: RootState) => s.mapStyle.selectedUiTheme,
     (s: RootState) => s.mapFilter.selectedCategory,
     (s: RootState) => s.mapFilter.selectedDesignation,
     (s: RootState) => s.terrain.terrainExaggeration,
   ],
-  (selectedTheme, fillOpacity, selectedCategory, selectedDesignation, terrainExaggeration): AugmentationSpec => {
-    const theme = THEME_OPTIONS[selectedTheme]
+  (selectedTheme, fillOpacity, selectedUiTheme, selectedCategory, selectedDesignation, terrainExaggeration): AugmentationSpec => {
+    const dataPalette = getUiTheme(selectedUiTheme).palette.dataPalette
+    const theme = buildThemeOptions(dataPalette)[selectedTheme]
 
     const conditions: unknown[] = []
     if (selectedCategory !== 'all') conditions.push(['==', ['get', 'DESIG_TYPE'], selectedCategory])
@@ -57,10 +60,13 @@ export const selectAugmentationSpec = createSelector(
           ...(filter ? { filter } : {}),
           paint: {
             'fill-color': buildColorExpression(theme),
+            // `selected` flips the fill off entirely so a touring park reads
+            // as just an outline against the basemap. `hover` still bumps
+            // opacity for non-selected features.
             'fill-opacity': [
               'case',
-              ['boolean', ['feature-state', 'hover'], false],
-              Math.min(fillOpacity + 0.3, 1),
+              ['boolean', ['feature-state', 'selected'], false], 0,
+              ['boolean', ['feature-state', 'hover'], false], Math.min(fillOpacity + 0.3, 1),
               fillOpacity,
             ],
           },
@@ -73,8 +79,19 @@ export const selectAugmentationSpec = createSelector(
           ...(filter ? { filter } : {}),
           paint: {
             'line-color': buildOutlineColorExpression(theme),
-            'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0.8],
-            'line-opacity': 0.9,
+            // Selected parks get a thicker stroke since the fill is gone and
+            // we want the boundary to read clearly during the orbit tour.
+            'line-width': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 2.5,
+              ['boolean', ['feature-state', 'hover'], false], 2,
+              0.8,
+            ],
+            'line-opacity': [
+              'case',
+              ['boolean', ['feature-state', 'selected'], false], 1,
+              0.9,
+            ],
           },
         } as LayerSpecification,
       ],

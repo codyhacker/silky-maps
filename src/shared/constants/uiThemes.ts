@@ -1,4 +1,5 @@
-import type { StyleSpecification } from 'mapbox-gl'
+import type { Map as MapboxMap, StyleSpecification, FogSpecification } from 'mapbox-gl'
+import type { ThemeDataPalette } from './themes'
 
 export interface UiPalette {
   // Backgrounds — stored as "R, G, B" for rgba() usage in CSS
@@ -63,6 +64,20 @@ export interface UiPalette {
   mapLabelCity: string
   mapLabelCountry: string
   mapLabelHalo: string
+
+  // Globe atmosphere + space (Mapbox `setFog()` payload — keys match spec)
+  mapFog: {
+    color: string             // lower atmosphere / horizon haze
+    'high-color': string      // upper atmosphere
+    'space-color': string     // deep space beyond the atmosphere
+    'horizon-blend': number   // 0–1, softness of the horizon line
+    'star-intensity': number  // 0–1, brightness of stars in space
+  }
+
+  // Parks-layer color ramps. Each UI theme picks a hue family that contrasts
+  // its own basemap (cool/warm complement) while staying coordinated with the
+  // chrome accents.
+  dataPalette: ThemeDataPalette
 }
 
 export interface UiTheme {
@@ -122,6 +137,35 @@ const SAGE_FOREST: UiTheme = {
     mapLabelCity: '#a8c87a',
     mapLabelCountry: '#bcd898',
     mapLabelHalo: '#111b0e',
+    mapFog: {
+      color: '#1a2820',
+      'high-color': '#3a5a32',
+      'space-color': '#050a08',
+      'horizon-blend': 0.04,
+      'star-intensity': 0.4,
+    },
+    // Gold/amber against the sage basemap — warm complement of forest greens.
+    dataPalette: {
+      designation: { National: '#fbbf24', International: '#fb923c' },
+      iucn: {
+        Ia:  '#78350f', Ib:  '#92400e', II:  '#b45309',
+        III: '#d97706', IV:  '#f59e0b', V:   '#fbbf24', VI: '#fde68a',
+        'Not Reported':  '#9ca3af',
+        'Not Applicable':'#a8a29e',
+        'Not Assigned':  '#d6d3d1',
+      },
+      status: { Designated: '#fbbf24', Established: '#f59e0b', Inscribed: '#fb923c' },
+      governance: {
+        'Federal or national ministry or agency': '#f59e0b',
+        'Sub-national ministry or agency':        '#fb923c',
+        'Collaborative governance':               '#f87171',
+        'Joint governance':                       '#ec4899',
+        'Individual landowners':                  '#d946ef',
+        'Non-profit organisations':               '#fbbf24',
+        'Not Reported':                           '#9ca3af',
+      },
+      default: '#fbbf24',
+    },
   },
 }
 
@@ -172,6 +216,35 @@ const DARK_EARTH: UiTheme = {
     mapLabelCity: '#c8a870',
     mapLabelCountry: '#dcc090',
     mapLabelHalo: '#1c1410',
+    mapFog: {
+      color: '#2a1d10',
+      'high-color': '#5a3e1c',
+      'space-color': '#0a0805',
+      'horizon-blend': 0.04,
+      'star-intensity': 0.4,
+    },
+    // Teal/cyan against the warm earth basemap — cool complement of browns/golds.
+    dataPalette: {
+      designation: { National: '#14b8a6', International: '#0ea5e9' },
+      iucn: {
+        Ia:  '#134e4a', Ib:  '#115e59', II:  '#0f766e',
+        III: '#0d9488', IV:  '#14b8a6', V:   '#2dd4bf', VI: '#5eead4',
+        'Not Reported':  '#94a3b8',
+        'Not Applicable':'#a1a1aa',
+        'Not Assigned':  '#d4d4d8',
+      },
+      status: { Designated: '#14b8a6', Established: '#06b6d4', Inscribed: '#0ea5e9' },
+      governance: {
+        'Federal or national ministry or agency': '#0ea5e9',
+        'Sub-national ministry or agency':        '#06b6d4',
+        'Collaborative governance':               '#6366f1',
+        'Joint governance':                       '#8b5cf6',
+        'Individual landowners':                  '#a855f7',
+        'Non-profit organisations':               '#14b8a6',
+        'Not Reported':                           '#94a3b8',
+      },
+      default: '#14b8a6',
+    },
   },
 }
 
@@ -222,6 +295,35 @@ const SLATE_MIST: UiTheme = {
     mapLabelCity: '#8ab8cc',
     mapLabelCountry: '#a8ccd8',
     mapLabelHalo: '#0f1820',
+    mapFog: {
+      color: '#15283c',
+      'high-color': '#2c5878',
+      'space-color': '#050810',
+      'horizon-blend': 0.05,
+      'star-intensity': 0.55,
+    },
+    // Coral/orange against the cool slate basemap — warm complement of blues/grays.
+    dataPalette: {
+      designation: { National: '#f97316', International: '#fbbf24' },
+      iucn: {
+        Ia:  '#7c2d12', Ib:  '#9a3412', II:  '#c2410c',
+        III: '#ea580c', IV:  '#f97316', V:   '#fb923c', VI: '#fdba74',
+        'Not Reported':  '#94a3b8',
+        'Not Applicable':'#a1a1aa',
+        'Not Assigned':  '#d4d4d8',
+      },
+      status: { Designated: '#f97316', Established: '#fb923c', Inscribed: '#fbbf24' },
+      governance: {
+        'Federal or national ministry or agency': '#f97316',
+        'Sub-national ministry or agency':        '#fb923c',
+        'Collaborative governance':               '#fbbf24',
+        'Joint governance':                       '#facc15',
+        'Individual landowners':                  '#fb7185',
+        'Non-profit organisations':               '#ef4444',
+        'Not Reported':                           '#94a3b8',
+      },
+      default: '#f97316',
+    },
   },
 }
 
@@ -291,6 +393,37 @@ const BOTANICA: UiTheme = {
     mapLabelCity: '#CBB89D',     // Butter
     mapLabelCountry: '#EDE1D2',  // Coconut
     mapLabelHalo: '#1a1008',
+    mapFog: {
+      color: '#2a1812',          // dark Cocoa horizon
+      'high-color': '#5D2510',   // Palm Oil upper atmosphere
+      'space-color': '#0a0604',  // near-black cocoa void
+      'horizon-blend': 0.04,
+      'star-intensity': 0.4,
+    },
+    // Lime/butter — extends the Organic olive accent into a brighter ramp so
+    // parks pop against the dark Cocoa basemap. Higher categories tip into
+    // Butter/Coconut for continuity with the rest of the palette.
+    dataPalette: {
+      designation: { National: '#a3e635', International: '#fbbf24' },
+      iucn: {
+        Ia:  '#365314', Ib:  '#3f6212', II:  '#4d7c0f',
+        III: '#65a30d', IV:  '#84cc16', V:   '#a3e635', VI: '#d9f99d',
+        'Not Reported':  '#a8a29e',
+        'Not Applicable':'#b8a890',
+        'Not Assigned':  '#d6c8b0',
+      },
+      status: { Designated: '#a3e635', Established: '#84cc16', Inscribed: '#fbbf24' },
+      governance: {
+        'Federal or national ministry or agency': '#84cc16',
+        'Sub-national ministry or agency':        '#a3e635',
+        'Collaborative governance':               '#facc15',
+        'Joint governance':                       '#fbbf24',
+        'Individual landowners':                  '#fb923c',
+        'Non-profit organisations':               '#f87171',
+        'Not Reported':                           '#a8a29e',
+      },
+      default: '#a3e635',
+    },
   },
 }
 
@@ -332,6 +465,15 @@ export function applyUiTheme(theme: UiTheme): void {
   el.style.setProperty('--popup-tip-color', p.popupTipColor)
   el.style.setProperty('--option-bg', p.optionBg)
   el.style.setProperty('--ctrl-icon-filter', p.ctrlIconFilter)
+}
+
+// ─── Globe atmosphere / space styling ────────────────────────────────────────
+
+// Applies the theme's `mapFog` config to the live map. Safe to call on any
+// style (Mapbox-hosted or our custom 'earth' style) and at any time —
+// `setFog` does not require the style to be reloaded.
+export function applyMapFog(map: MapboxMap, palette: UiPalette): void {
+  map.setFog(palette.mapFog as FogSpecification)
 }
 
 // ─── Mapbox custom style builder ──────────────────────────────────────────────

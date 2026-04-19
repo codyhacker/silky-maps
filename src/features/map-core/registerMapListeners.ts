@@ -40,4 +40,20 @@ export function registerMapListeners(engine: MapEngine): void {
       engine.execute({ type: 'FIT_BOUNDS', bounds: action.payload.bounds, options: action.payload })
     },
   })
+
+  // Tour lifecycle: any change to `tourActive` (set directly via setTourActive
+  // OR cleared as a side-effect of setSelectedFeature) drives the engine.
+  startAppListening({
+    predicate: (_action, currentState, previousState) =>
+      currentState.mapInteraction.tourActive !== previousState.mapInteraction.tourActive,
+    effect: (_action, api) => {
+      const state = api.getState()
+      const selected = state.mapInteraction.selectedFeature
+      if (state.mapInteraction.tourActive && selected?.SITE_PID != null) {
+        engine.startTour(selected.SITE_PID)
+      } else {
+        engine.stopTour()
+      }
+    },
+  })
 }

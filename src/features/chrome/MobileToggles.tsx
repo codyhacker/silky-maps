@@ -27,11 +27,14 @@ export function MobileToggles() {
           onClick={() => { dispatch(setShowLegend(!showLegend)); dispatch(setShowControls(false)) }}
           aria-label="Toggle legend"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="7" height="7" rx="1" />
-            <rect x="14" y="3" width="7" height="7" rx="1" />
-            <rect x="3" y="14" width="7" height="7" rx="1" />
-            <rect x="14" y="14" width="7" height="7" rx="1" />
+          {/* Info circle — the legend panel is a read-only info surface
+              (color key + hover details), so the "ⓘ" glyph reads correctly
+              as "look here, not tweak here" and stays shape-orthogonal to
+              the sliders icon on the controls button. */}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9.5" />
+            <line x1="12" y1="11" x2="12" y2="17" />
+            <circle cx="12" cy="7.5" r="0.5" fill="currentColor" stroke="currentColor" strokeWidth="1.6" />
           </svg>
         </button>
 
@@ -43,9 +46,15 @@ export function MobileToggles() {
           onClick={() => { dispatch(setShowControls(!showControls)); dispatch(setShowLegend(false)) }}
           aria-label="Toggle controls"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+          {/* Horizontal sliders — universal "settings / tunables" glyph and
+              mirrors the actual Opacity / Terrain sliders inside the panel. */}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="6"  x2="20" y2="6"  />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+            <circle cx="15" cy="6"  r="2.2" fill="currentColor" stroke="none" />
+            <circle cx="9"  cy="12" r="2.2" fill="currentColor" stroke="none" />
+            <circle cx="17" cy="18" r="2.2" fill="currentColor" stroke="none" />
           </svg>
         </button>
       </div>

@@ -34,5 +34,10 @@ const mapStyleSlice = createSlice({
   },
 })
 
-export const { setSelectedTheme, setFillOpacity, setSelectedBasemap, setSelectedUiTheme } = mapStyleSlice.actions
+export const {
+  setSelectedTheme,
+  setFillOpacity,
+  setSelectedBasemap,
+  setSelectedUiTheme,
+} = mapStyleSlice.actions
 export default mapStyleSlice.reducer

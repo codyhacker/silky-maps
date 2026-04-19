@@ -2,14 +2,15 @@ import { clsx } from 'clsx'
 import { useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../../app/hooks'
 import { toggleSection, setShowControls } from '../chrome/uiSlice'
-import { setSelectedTheme, setFillOpacity, setSelectedUiTheme } from './mapStyleSlice'
+import { setSelectedTheme, setFillOpacity, setSelectedUiTheme, setSelectedBasemap } from './mapStyleSlice'
 import { setSelectedFeature } from '../map-core/mapInteractionSlice'
 import { fitBounds } from '../map-core/commandedCameraSlice'
 import { setCategoryAndResetDesignation, setDesignation } from './mapFilterSlice'
 import { setTerrainExaggeration } from './terrainSlice'
-import { THEME_OPTIONS } from '../../shared/constants/themes'
+import { THEME_LABELS } from '../../shared/constants/themes'
 import { CATEGORY_OPTIONS, DESIGNATION_OPTIONS } from '../../shared/constants/filters'
 import { UI_THEMES } from '../../shared/constants/uiThemes'
+import { BASEMAP_OPTIONS } from '../../shared/constants/basemaps'
 import { getCountry } from '../../shared/constants/parkLabels'
 import { useMapEngine } from '../map-core/MapEngineContext'
 import { TitleGlobe } from '../../shared/components/TitleGlobe'
@@ -44,6 +45,7 @@ export function ControlPanel() {
   const selectedDesig    = useAppSelector(s => s.mapFilter.selectedDesignation)
   const terrainExag      = useAppSelector(s => s.terrain.terrainExaggeration)
   const selectedUiTheme  = useAppSelector(s => s.mapStyle.selectedUiTheme)
+  const selectedBasemap  = useAppSelector(s => s.mapStyle.selectedBasemap)
 
   const [collapsed, setCollapsed] = useState(false)
   const [query,     setQuery]     = useState('')
@@ -205,9 +207,23 @@ export function ControlPanel() {
           {sectionsOpen.style && (
             <div className="p-3 bg-black/15 rounded-b-lg border-t border-accent/15 animate-[expandDown_0.3s_cubic-bezier(0.16,1,0.3,1)] origin-top">
               <div className="mb-3.5 last:mb-0">
+                <span className="block text-[11px] text-[var(--text-muted)] mb-2 uppercase tracking-[0.3px]">Basemap</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {BASEMAP_OPTIONS.map(opt => (
+                    <button
+                      key={opt.id}
+                      className={clsx(chipBase, selectedBasemap === opt.id && 'bg-active-gradient border-[var(--active-border)] text-white animate-[chipActivate_0.25s_cubic-bezier(0.16,1,0.3,1)]')}
+                      onClick={() => dispatch(setSelectedBasemap(opt.id))}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mb-3.5 last:mb-0">
                 <span className="block text-[11px] text-[var(--text-muted)] mb-2 uppercase tracking-[0.3px]">Color by</span>
                 <div className="flex bg-black/20 rounded-md p-[3px] gap-0.5">
-                  {THEME_OPTIONS.map((opt, i) => (
+                  {THEME_LABELS.map((opt, i) => (
                     <button
                       key={opt.property}
                       className={clsx(
@@ -227,7 +243,7 @@ export function ControlPanel() {
                   ))}
                 </div>
               </div>
-              <div className="mb-0">
+              <div className="mb-3.5 last:mb-0">
                 <div className="flex justify-between items-center mb-2">
                   <span className="block text-[11px] text-[var(--text-muted)] uppercase tracking-[0.3px]">Opacity</span>
                   <span className="text-[11px] text-[var(--text-secondary)] font-medium">{Math.round(fillOpacity * 100)}%</span>
@@ -237,6 +253,39 @@ export function ControlPanel() {
                   value={fillOpacity * 100}
                   onChange={e => dispatch(setFillOpacity(Number(e.target.value) / 100))}
                 />
+              </div>
+              <div className="mb-0">
+                <span className="block text-[11px] text-[var(--text-muted)] mb-2 uppercase tracking-[0.3px]">UI Theme</span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {UI_THEMES.map(theme => (
+                    <button
+                      key={theme.id}
+                      className={clsx(
+                        'flex flex-col items-center gap-[5px] py-2 px-1',
+                        'bg-transparent border border-accent/20 rounded-lg cursor-pointer',
+                        'transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]',
+                        'hover:border-accent/50 hover:bg-accent/10 hover:-translate-y-px',
+                        selectedUiTheme === theme.id && 'border-[var(--active-border)] bg-accent/15 shadow-[0_0_0_2px_rgba(var(--active-rgb),0.3)]'
+                      )}
+                      onClick={() => dispatch(setSelectedUiTheme(theme.id))}
+                      title={theme.label}
+                    >
+                      <div
+                        className="w-9 h-[26px] max-md:w-[30px] max-md:h-[22px] rounded-[5px] relative overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
+                        style={{ background: theme.previewGradient }}
+                      >
+                        <div
+                          className="absolute bottom-1 right-1 w-2 h-2 rounded-full border border-white/30"
+                          style={{ background: theme.previewDot }}
+                        />
+                      </div>
+                      <span className={clsx(
+                        'text-[9px] text-center whitespace-nowrap overflow-hidden text-ellipsis w-full px-0.5',
+                        selectedUiTheme === theme.id ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'
+                      )}>{theme.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -263,52 +312,6 @@ export function ControlPanel() {
                   value={terrainExag * 10}
                   onChange={e => dispatch(setTerrainExaggeration(Number(e.target.value) / 10))}
                 />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Appearance section ────────────────────────────────────────────── */}
-        <div className="mb-1 last:mb-0">
-          <button
-            className={clsx(sectionHeaderBase, sectionsOpen.appearance && 'bg-accent/25 !rounded-b-none')}
-            onClick={() => dispatch(toggleSection('appearance'))}
-          >
-            <span>Appearance</span>
-            <span className="text-sm font-normal opacity-70">{sectionsOpen.appearance ? '−' : '+'}</span>
-          </button>
-          {sectionsOpen.appearance && (
-            <div className="p-3 bg-black/15 rounded-b-lg border-t border-accent/15 animate-[expandDown_0.3s_cubic-bezier(0.16,1,0.3,1)] origin-top">
-              <span className="block text-[11px] text-[var(--text-muted)] mb-2 uppercase tracking-[0.3px]">UI Theme</span>
-              <div className="grid grid-cols-3 gap-1.5">
-                {UI_THEMES.map(theme => (
-                  <button
-                    key={theme.id}
-                    className={clsx(
-                      'flex flex-col items-center gap-[5px] py-2 px-1',
-                      'bg-transparent border border-accent/20 rounded-lg cursor-pointer',
-                      'transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]',
-                      'hover:border-accent/50 hover:bg-accent/10 hover:-translate-y-px',
-                      selectedUiTheme === theme.id && 'border-[var(--active-border)] bg-accent/15 shadow-[0_0_0_2px_rgba(var(--active-rgb),0.3)]'
-                    )}
-                    onClick={() => dispatch(setSelectedUiTheme(theme.id))}
-                    title={theme.label}
-                  >
-                    <div
-                      className="w-9 h-[26px] max-md:w-[30px] max-md:h-[22px] rounded-[5px] relative overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
-                      style={{ background: theme.previewGradient }}
-                    >
-                      <div
-                        className="absolute bottom-1 right-1 w-2 h-2 rounded-full border border-white/30"
-                        style={{ background: theme.previewDot }}
-                      />
-                    </div>
-                    <span className={clsx(
-                      'text-[9px] text-center whitespace-nowrap overflow-hidden text-ellipsis w-full px-0.5',
-                      selectedUiTheme === theme.id ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'
-                    )}>{theme.label}</span>
-                  </button>
-                ))}
               </div>
             </div>
           )}
