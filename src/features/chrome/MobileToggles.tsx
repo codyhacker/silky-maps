@@ -1,16 +1,29 @@
+import { clsx } from 'clsx'
 import { useAppDispatch, useAppSelector } from '../../app/hooks'
 import { setShowControls, setShowLegend, closeMobilePanels } from './uiSlice'
 
 export function MobileToggles() {
-  const dispatch = useAppDispatch()
+  const dispatch     = useAppDispatch()
   const showControls = useAppSelector(s => s.ui.showControls)
-  const showLegend = useAppSelector(s => s.ui.showLegend)
+  const showLegend   = useAppSelector(s => s.ui.showLegend)
+
+  const base = clsx(
+    'w-12 h-12 max-[480px]:w-11 max-[480px]:h-11',
+    'rounded-full flex items-center justify-center cursor-pointer',
+    'border border-accent/40',
+    'shadow-[0_4px_20px_rgba(0,0,0,0.5)]',
+    'transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
+    'active:scale-95'
+  )
 
   return (
     <>
       <div className="mobile-toggles">
         <button
-          className={`mobile-toggle ${showLegend ? 'active' : ''}`}
+          className={clsx(base, showLegend
+            ? 'bg-active-gradient border-[var(--active-border)] text-white animate-[toggleActivate_0.3s_cubic-bezier(0.16,1,0.3,1)]'
+            : 'bg-surface/95 text-[var(--text-secondary)] hover:bg-surface-2/98 hover:scale-[1.08]'
+          )}
           onClick={() => { dispatch(setShowLegend(!showLegend)); dispatch(setShowControls(false)) }}
           aria-label="Toggle legend"
         >
@@ -21,8 +34,12 @@ export function MobileToggles() {
             <rect x="14" y="14" width="7" height="7" rx="1" />
           </svg>
         </button>
+
         <button
-          className={`mobile-toggle ${showControls ? 'active' : ''}`}
+          className={clsx(base, showControls
+            ? 'bg-active-gradient border-[var(--active-border)] text-white animate-[toggleActivate_0.3s_cubic-bezier(0.16,1,0.3,1)]'
+            : 'bg-surface/95 text-[var(--text-secondary)] hover:bg-surface-2/98 hover:scale-[1.08]'
+          )}
           onClick={() => { dispatch(setShowControls(!showControls)); dispatch(setShowLegend(false)) }}
           aria-label="Toggle controls"
         >
