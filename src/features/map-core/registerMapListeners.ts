@@ -1,0 +1,43 @@
+import { startAppListening } from '../../app/listenerMiddleware'
+import { setSelectedBasemap, setSelectedUiTheme } from '../parks/mapStyleSlice'
+import { selectAugmentationSpec } from './styleAugmentation'
+import { flyTo, fitBounds } from './commandedCameraSlice'
+import type { MapEngine } from './MapEngine'
+
+export function registerMapListeners(engine: MapEngine): void {
+  startAppListening({
+    predicate: (_action, currentState, previousState) =>
+      selectAugmentationSpec(currentState) !== selectAugmentationSpec(previousState),
+    effect: (_action, api) => {
+      engine.execute({ type: 'STYLE_RECONCILE', spec: selectAugmentationSpec(api.getState()) })
+    },
+  })
+
+  startAppListening({
+    actionCreator: setSelectedBasemap,
+    effect: (action) => {
+      engine.execute({ type: 'BASEMAP_CHANGE', basemapId: action.payload })
+    },
+  })
+
+  startAppListening({
+    actionCreator: setSelectedUiTheme,
+    effect: (action) => {
+      engine.execute({ type: 'UI_THEME_CHANGE', themeId: action.payload })
+    },
+  })
+
+  startAppListening({
+    actionCreator: flyTo,
+    effect: (action) => {
+      engine.execute({ type: 'FLY_TO', options: action.payload })
+    },
+  })
+
+  startAppListening({
+    actionCreator: fitBounds,
+    effect: (action) => {
+      engine.execute({ type: 'FIT_BOUNDS', bounds: action.payload.bounds, options: action.payload })
+    },
+  })
+}
