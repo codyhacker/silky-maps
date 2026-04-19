@@ -24,12 +24,10 @@ const CUSTOM_BASEMAP_ID = 'earth'
 
 // Tour overlay — Mapbox satellite tiles scoped to the selected park's bbox,
 // PLUS a turf-computed inverse-polygon mask that hides the satellite outside
-// the polygon shape. Layer order during a tour:
-//   basemap → satellite (bbox-bounded) → mask (bbox − polygon) → parks-fill → parks-outline
-// The mask is painted with the active UI theme's `mapBg` so it blends with
-// the surrounding custom-earth basemap. On Mapbox-hosted basemaps the mask
-// will read as a flat themed ring within the bbox — acceptable trade-off
-// since strict polygon clipping requires this opaque cover.
+// the polygon shape. Both layers are inserted below the first road layer so
+// roads, admin boundaries, labels, and other parks still render on top of
+// the mask — only the land/water/hillshade background is covered in the ring.
+//   basemap fills+hillshade → satellite → mask → roads/labels → parks-fill → parks-outline
 const TOUR_SATELLITE_SRC_ID = 'tour-satellite-src'
 const TOUR_SATELLITE_LAYER_ID = 'tour-satellite'
 const TOUR_MASK_SRC_ID = 'tour-mask-src'
@@ -282,14 +280,14 @@ export class MapEngine {
       data: inverse,
     })
 
-    // Use the active UI theme's mapBg so the mask blends with the surrounding
-    // custom-earth basemap. Mapbox-hosted basemaps will see a flat themed ring
-    // within the bbox (see top-of-file note).
     const palette = getUiTheme(this.store.getState().mapStyle.selectedUiTheme).palette
 
-    // `before` anchor: insert both layers below `parks-fill` so other parks
-    // and the selected park's outline still render on top of the satellite.
-    const before = this.map.getLayer('parks-fill') ? 'parks-fill' : undefined
+    // Insert below roads so road/admin/label vector layers render on top of the
+    // mask — only the land background is covered in the bbox ring, not features.
+    // Falls back to parks-fill on non-earth basemaps.
+    const before = this.map.getLayer('road-minor')
+      ? 'road-minor'
+      : this.map.getLayer('parks-fill') ? 'parks-fill' : undefined
 
     this.map.addLayer(
       {
@@ -304,8 +302,6 @@ export class MapEngine {
       before,
     )
 
-    // Mask is added *after* satellite with the same `before` anchor, so it
-    // ends up immediately above the satellite (and still below parks-fill).
     this.map.addLayer(
       {
         id: TOUR_MASK_LAYER_ID,
@@ -527,9 +523,6 @@ export class MapEngine {
       }
     }
 
-    // Tour cutout-around-park is painted with `mapBg` captured at tour-start.
-    // Repaint it live so the ring tracks the active theme rather than freezing
-    // on whichever theme was active when the tour started.
     if (this.map.getLayer(TOUR_MASK_LAYER_ID)) {
       this.map.setPaintProperty(TOUR_MASK_LAYER_ID, 'fill-color', theme.palette.mapBg)
     }
