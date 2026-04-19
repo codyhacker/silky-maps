@@ -1,5 +1,14 @@
 import mapboxgl from 'mapbox-gl'
+// Have Vite bundle Mapbox's worker as a real module (with a stable URL it
+// controls) instead of letting Mapbox stringify + Blob-URL its inlined worker
+// source. The blob path picks up Vite's dev-mode HMR helpers (e.g.
+// `__vite__injectQuery`) which then crash inside the worker context where
+// those helpers don't exist. Same workaround documented in
+// https://github.com/mapbox/mapbox-gl-js/issues/12656.
+import MapboxWorker from 'mapbox-gl/dist/mapbox-gl-csp-worker?worker'
 import { diff } from '@mapbox/mapbox-gl-style-spec'
+
+;(mapboxgl as unknown as { workerClass: typeof Worker }).workerClass = MapboxWorker as unknown as typeof Worker
 import type { AppStore } from '../../app/store'
 import { setHoveredFeature, setSelectedFeature, cameraObserved } from './mapInteractionSlice'
 import { fitBounds } from './commandedCameraSlice'

@@ -25,22 +25,52 @@ npm install
 Create a `.env` file in the root directory:
 ```bash
 VITE_MAPBOX_ACCESS_TOKEN=your_mapbox_token_here
-VITE_TILE_SERVER_URL=http://localhost:8080
+VITE_PMTILES_URL=https://pub-<hash>.r2.dev/wdpa.pmtiles
 ```
 
-### 3. Start your tile server
+### 3. Host the PMTiles file
 
-The app expects vector tiles at:
-```
-{TILE_SERVER_URL}/data/pmtiles/{z}/{x}/{y}.pbf
+The app loads protected-areas data directly from a single `.pmtiles` file
+via the PMTiles support built into Mapbox GL JS v3.21+. Any host that
+supports HTTP range requests and CORS works (Cloudflare R2, S3, etc.).
+
+Required CORS rules on the bucket:
+
+```json
+[
+  {
+    "AllowedOrigins": ["http://localhost:5173", "https://your-prod-domain"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["Range", "If-Match", "If-None-Match"],
+    "ExposeHeaders": ["Content-Length", "Content-Range", "Accept-Ranges", "ETag"]
+  }
+]
 ```
 
-### 4. Run the development server
+For local development without a remote bucket, serve the file with a
+range-capable static server:
+
+```bash
+npx serve /path/to/spatialData -l 8080 --cors
+# then set VITE_PMTILES_URL=http://localhost:8080/wdpa.pmtiles
+```
+
+### 4. (Re)building the PMTiles file from raw WDPA
+
+```bash
+tippecanoe -o wdpa.pmtiles -l geo -zg \
+  --drop-densest-as-needed --force wdpa_poly.geojson
+```
+
+The layer name **must** be `geo` (matches `SOURCE_LAYER` in
+`src/features/map-core/styleAugmentation.ts`).
+
+### 5. Run the development server
 ```bash
 npm run dev
 ```
 
-### 5. Build for production
+### 6. Build for production
 ```bash
 npm run build
 ```
@@ -50,7 +80,7 @@ npm run build
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `VITE_MAPBOX_ACCESS_TOKEN` | Mapbox GL access token | Required |
-| `VITE_TILE_SERVER_URL` | URL to your tile server | `http://localhost:8080` |
+| `VITE_PMTILES_URL` | Public URL to the WDPA `.pmtiles` file | `http://localhost:8080/wdpa.pmtiles` |
 
 ## Tech Stack
 
