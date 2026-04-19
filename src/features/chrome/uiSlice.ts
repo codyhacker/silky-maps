@@ -4,30 +4,29 @@ interface SectionsOpenState {
   filters: boolean
   style: boolean
   display: boolean
-  appearance: boolean
 }
 
 interface UIState {
-  showBasemapMenu: boolean
   sectionsOpen: SectionsOpenState
   showControls: boolean
   showLegend: boolean
+  // Desktop-only: legend can be collapsed to a small pill so it doesn't
+  // dominate the bottom-right corner. Mobile ignores this and always shows
+  // full content when the user explicitly taps the toggle.
+  legendCollapsed: boolean
 }
 
 const initialState: UIState = {
-  showBasemapMenu: false,
-  sectionsOpen: { filters: false, style: false, display: false, appearance: false },
+  sectionsOpen: { filters: false, style: false, display: false },
   showControls: false,
   showLegend: false,
+  legendCollapsed: true,
 }
 
 const uiSlice = createSlice({
   name: 'ui',
   initialState,
   reducers: {
-    setShowBasemapMenu(state, action: PayloadAction<boolean>) {
-      state.showBasemapMenu = action.payload
-    },
     toggleSection(state, action: PayloadAction<keyof SectionsOpenState>) {
       state.sectionsOpen[action.payload] = !state.sectionsOpen[action.payload]
     },
@@ -37,6 +36,12 @@ const uiSlice = createSlice({
     setShowLegend(state, action: PayloadAction<boolean>) {
       state.showLegend = action.payload
     },
+    toggleLegendCollapsed(state) {
+      state.legendCollapsed = !state.legendCollapsed
+    },
+    setLegendCollapsed(state, action: PayloadAction<boolean>) {
+      state.legendCollapsed = action.payload
+    },
     closeMobilePanels(state) {
       state.showControls = false
       state.showLegend = false
@@ -44,5 +49,12 @@ const uiSlice = createSlice({
   },
 })
 
-export const { setShowBasemapMenu, toggleSection, setShowControls, setShowLegend, closeMobilePanels } = uiSlice.actions
+export const {
+  toggleSection,
+  setShowControls,
+  setShowLegend,
+  toggleLegendCollapsed,
+  setLegendCollapsed,
+  closeMobilePanels,
+} = uiSlice.actions
 export default uiSlice.reducer

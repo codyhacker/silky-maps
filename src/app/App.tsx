@@ -3,7 +3,6 @@ import { MapView } from '../features/map-core/MapView'
 import { ControlPanel } from '../features/parks/ControlPanel'
 import { LegendPanel } from '../features/parks/LegendPanel'
 import { ParkDetailPanel } from '../features/parks/ParkDetailPanel'
-import { BasemapControl } from '../features/chrome/BasemapControl'
 import { MobileToggles } from '../features/chrome/MobileToggles'
 
 function App() {
@@ -13,7 +12,6 @@ function App() {
         <MobileToggles />
         <ControlPanel />
         <LegendPanel />
-        <BasemapControl />
         <ParkDetailPanel />
       </MapView>
     </div>
