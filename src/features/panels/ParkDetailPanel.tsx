@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../../app/hooks'
-import { setSelectedFeature, setTourActive } from '../map-core/mapInteractionSlice'
+import { setSelectedFeature, setTourActive } from '../parks/interactionSlice'
 import {
   IUCN_LABELS,
   IUCN_DESCRIPTIONS,
@@ -14,7 +14,7 @@ import { ParkPlaceholderImage } from '../../shared/components/ParkPlaceholderIma
 
 export function ParkDetailPanel() {
   const dispatch = useAppDispatch()
-  const feature  = useAppSelector(s => s.mapInteraction.selectedFeature)
+  const feature  = useAppSelector(s => s.parksInteraction.selectedFeature)
 
   const visible = feature !== null
   const name    = feature ? String(feature.NAME || feature.NAME_ENG || 'Unknown Park') : ''
@@ -68,84 +68,101 @@ export function ParkDetailPanel() {
     !!iucnLabel || !!desig || !!iucnDesc || !!media?.summary || !!govLabel ||
     !!(area && area.comparison) || !!since
 
+  // On mobile, `expanded` swaps the layout from "bottom drawer" to "transparent
+  // overlay": the summary card sticks to the top, the expanded card sticks to
+  // the bottom, and the live tour orbits visibly through the gap between them.
+  // Tapping that gap also lets the user grab the camera (which stops the tour
+  // via MapEngine's user-interaction listener).
+  const panelClass = `park-detail-panel${visible ? ' visible' : ''}${expanded ? ' expanded' : ''}`
+
   return (
-    <div className={`park-detail-panel${visible ? ' visible' : ''}`} role="region" aria-label="Park details">
-      {/* Hero — bleeds to the panel edges, rounds the top corners */}
-      <div className="park-detail-hero">
-        {showImage ? (
-          <img
-            src={media!.imageUrl!}
-            alt={name}
-            loading="lazy"
-            onError={() => setImageFailed(true)}
-            className="w-full h-full object-cover block"
-          />
-        ) : (
-          <ParkPlaceholderImage />
+    <div className={panelClass} role="region" aria-label="Park details">
+      {/* Summary card — always shown when the panel is visible. Wraps hero,
+          title, country, chips, and the Full detail / Show less toggle so
+          they can render as a single glass surface in the mobile-expanded
+          layout. */}
+      <div className="park-detail-summary">
+        <div className="park-detail-hero">
+          {showImage ? (
+            <img
+              src={media!.imageUrl!}
+              alt={name}
+              loading="lazy"
+              onError={() => setImageFailed(true)}
+              className="w-full h-full object-cover block"
+            />
+          ) : (
+            <ParkPlaceholderImage />
+          )}
+        </div>
+
+        {/* Header / meta block — title, country, and the compact stats strip
+            live together inside one .park-detail-block so the mobile-expanded
+            layout can render them as a single opaque card on a transparent
+            panel. On desktop and mobile-collapsed the wrapper has no styling
+            and the children flow exactly as before. */}
+        <div className="park-detail-block">
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <h2 className="text-[17px] font-bold text-[var(--text-primary)] leading-snug flex-1 m-0">{name}</h2>
+            <button
+              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-0 cursor-pointer text-lg leading-none transition-all duration-150 bg-accent/15 text-[var(--text-muted)] hover:bg-accent/30 hover:text-[var(--text-primary)]"
+              onClick={() => dispatch(setSelectedFeature(null))}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          {country && (
+            <p className="text-[13px] text-[var(--text-secondary)] m-0">
+              {country.flag} {country.name}
+            </p>
+          )}
+
+          {(area || yearShort || iucnLabel) && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {area && (
+                <Chip icon="📐" label={area.display} />
+              )}
+              {yearShort && (
+                <Chip icon="🗓" label={yearShort} />
+              )}
+              {iucnLabel && (
+                <Chip icon="🏷" label={iucnLabel} />
+              )}
+            </div>
+          )}
+        </div>
+
+        {hasExpandableContent && (
+          <button
+            type="button"
+            className="park-detail-toggle"
+            onClick={() => {
+              const next = !expanded
+              setExpanded(next)
+              // Expanding starts the orbit tour + flips the park to outline-only;
+              // collapsing stops it. Selection changes also clear the tour
+              // automatically via the slice reducer.
+              dispatch(setTourActive(next))
+            }}
+            aria-expanded={expanded}
+          >
+            <span>{expanded ? 'Show less' : 'Full detail'}</span>
+            <svg
+              className={`park-detail-toggle-chevron${expanded ? ' open' : ''}`}
+              width="14" height="14" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="2.2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
         )}
       </div>
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <h2 className="text-[17px] font-bold text-[var(--text-primary)] leading-snug flex-1 m-0">{name}</h2>
-        <button
-          className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-0 cursor-pointer text-lg leading-none transition-all duration-150 bg-accent/15 text-[var(--text-muted)] hover:bg-accent/30 hover:text-[var(--text-primary)]"
-          onClick={() => dispatch(setSelectedFeature(null))}
-          aria-label="Close"
-        >
-          ×
-        </button>
-      </div>
-
-      {country && (
-        <p className="text-[13px] text-[var(--text-secondary)] m-0">
-          {country.flag} {country.name}
-        </p>
-      )}
-
-      {/* Compact stats strip — always visible, terse single-row chips */}
-      {(area || yearShort || iucnLabel) && (
-        <div className="flex flex-wrap gap-1.5 mt-3">
-          {area && (
-            <Chip icon="📐" label={area.display} />
-          )}
-          {yearShort && (
-            <Chip icon="🗓" label={yearShort} />
-          )}
-          {iucnLabel && (
-            <Chip icon="🏷" label={iucnLabel} />
-          )}
-        </div>
-      )}
-
-      {hasExpandableContent && (
-        <button
-          type="button"
-          className="park-detail-toggle"
-          onClick={() => {
-            const next = !expanded
-            setExpanded(next)
-            // Expanding starts the orbit tour + flips the park to outline-only;
-            // collapsing stops it. Selection changes also clear the tour
-            // automatically via the slice reducer.
-            dispatch(setTourActive(next))
-          }}
-          aria-expanded={expanded}
-        >
-          <span>{expanded ? 'Show less' : 'Full detail'}</span>
-          <svg
-            className={`park-detail-toggle-chevron${expanded ? ' open' : ''}`}
-            width="14" height="14" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" strokeWidth="2.2"
-            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-      )}
-
       {expanded && (
-        <div className="mt-3 pt-3 border-t border-accent/20">
+        <div className="park-detail-expanded mt-3 pt-3 border-t border-accent/20">
           {(iucnLabel || desig) && (
             <div className="flex flex-wrap gap-1.5 mb-2.5">
               {iucnLabel && (
@@ -162,11 +179,11 @@ export function ParkDetailPanel() {
           )}
 
           {iucnDesc && (
-            <p className="text-xs text-[var(--text-muted)] m-0 mb-3.5 leading-relaxed">{iucnDesc}</p>
+            <p className="park-detail-block text-xs text-[var(--text-muted)] m-0 mb-3.5 leading-relaxed">{iucnDesc}</p>
           )}
 
           {media?.summary && (
-            <div className="mb-3.5">
+            <div className="park-detail-block mb-3.5">
               <p className="text-[13px] text-[var(--text-secondary)] m-0 leading-relaxed">
                 {media.summary}
               </p>
@@ -183,7 +200,7 @@ export function ParkDetailPanel() {
             </div>
           )}
 
-          <div className="flex flex-col gap-2.5">
+          <div className="park-detail-block flex flex-col gap-2.5">
             {area && area.comparison && (
               <div className="flex items-baseline gap-2.5">
                 <span className="text-sm w-5 flex-shrink-0 text-center">📐</span>

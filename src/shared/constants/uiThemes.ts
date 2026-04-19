@@ -1,5 +1,5 @@
 import type { Map as MapboxMap, StyleSpecification, FogSpecification } from 'mapbox-gl'
-import type { ThemeDataPalette } from './themes'
+import type { ThemeDataPalette } from './dataPalettes'
 
 export interface UiPalette {
   // Backgrounds — stored as "R, G, B" for rgba() usage in CSS

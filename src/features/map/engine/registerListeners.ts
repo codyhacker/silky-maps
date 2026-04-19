@@ -1,7 +1,7 @@
-import { startAppListening } from '../../app/listenerMiddleware'
-import { setSelectedBasemap, setSelectedUiTheme } from '../parks/mapStyleSlice'
+import { startAppListening } from '../../../app/listenerMiddleware'
+import { setSelectedBasemap, setSelectedUiTheme } from '../styleSlice'
 import { selectAugmentationSpec } from './styleAugmentation'
-import { flyTo, fitBounds } from './commandedCameraSlice'
+import { flyTo, fitBounds } from '../cameraSlice'
 import type { MapEngine } from './MapEngine'
 
 export function registerMapListeners(engine: MapEngine): void {
@@ -45,11 +45,11 @@ export function registerMapListeners(engine: MapEngine): void {
   // OR cleared as a side-effect of setSelectedFeature) drives the engine.
   startAppListening({
     predicate: (_action, currentState, previousState) =>
-      currentState.mapInteraction.tourActive !== previousState.mapInteraction.tourActive,
+      currentState.parksInteraction.tourActive !== previousState.parksInteraction.tourActive,
     effect: (_action, api) => {
       const state = api.getState()
-      const selected = state.mapInteraction.selectedFeature
-      if (state.mapInteraction.tourActive && selected?.SITE_PID != null) {
+      const selected = state.parksInteraction.selectedFeature
+      if (state.parksInteraction.tourActive && selected?.SITE_PID != null) {
         engine.startTour(selected.SITE_PID)
       } else {
         engine.stopTour()

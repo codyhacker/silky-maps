@@ -1,9 +1,9 @@
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { MapView } from '../features/map-core/MapView'
-import { ControlPanel } from '../features/parks/ControlPanel'
-import { LegendPanel } from '../features/parks/LegendPanel'
-import { ParkDetailPanel } from '../features/parks/ParkDetailPanel'
-import { MobileToggles } from '../features/chrome/MobileToggles'
+import { MapView } from '../features/map/engine/MapView'
+import { ControlPanel } from '../features/panels/ControlPanel'
+import { LegendPanel } from '../features/panels/LegendPanel'
+import { ParkDetailPanel } from '../features/panels/ParkDetailPanel'
+import { MobileToggles } from '../features/shell/MobileToggles'
 
 function App() {
   return (

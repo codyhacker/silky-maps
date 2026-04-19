@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useStore } from 'react-redux'
 import { MapEngine } from './MapEngine'
 import { MapEngineContext } from './MapEngineContext'
-import { registerMapListeners } from './registerMapListeners'
-import type { AppStore } from '../../app/store'
+import { registerMapListeners } from './registerListeners'
+import type { AppStore } from '../../../app/store'
 
 interface MapViewProps {
   children: React.ReactNode

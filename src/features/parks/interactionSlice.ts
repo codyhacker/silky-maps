@@ -1,17 +1,9 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { HoveredFeatureProperties } from '../../shared/types'
 
-export interface ObservedCamera {
-  center: [number, number]
-  zoom: number
-  bearing: number
-  pitch: number
-}
-
-interface MapInteractionState {
+interface ParksInteractionState {
   hoveredFeature: HoveredFeatureProperties | null
   selectedFeature: HoveredFeatureProperties | null
-  camera: ObservedCamera | null
   // True while the "Full detail" view is open and the engine is running an
   // orbit tour around the selected park. Selecting a different feature (or
   // closing the panel) auto-resets this to false in the reducer below so the
@@ -19,15 +11,14 @@ interface MapInteractionState {
   tourActive: boolean
 }
 
-const initialState: MapInteractionState = {
+const initialState: ParksInteractionState = {
   hoveredFeature: null,
   selectedFeature: null,
-  camera: null,
   tourActive: false,
 }
 
-const mapInteractionSlice = createSlice({
-  name: 'mapInteraction',
+const parksInteractionSlice = createSlice({
+  name: 'parksInteraction',
   initialState,
   reducers: {
     setHoveredFeature(state, action: PayloadAction<HoveredFeatureProperties | null>) {
@@ -43,9 +34,6 @@ const mapInteractionSlice = createSlice({
       // can't activate the engine path.
       state.tourActive = !!state.selectedFeature && action.payload
     },
-    cameraObserved(state, action: PayloadAction<ObservedCamera>) {
-      state.camera = action.payload
-    },
   },
 })
 
@@ -53,6 +41,5 @@ export const {
   setHoveredFeature,
   setSelectedFeature,
   setTourActive,
-  cameraObserved,
-} = mapInteractionSlice.actions
-export default mapInteractionSlice.reducer
+} = parksInteractionSlice.actions
+export default parksInteractionSlice.reducer
