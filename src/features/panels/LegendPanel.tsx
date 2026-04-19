@@ -1,13 +1,24 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { clsx } from 'clsx'
 import { useAppDispatch, useAppSelector } from '../../app/hooks'
 import { setShowLegend, toggleLegendCollapsed } from '../shell/uiSlice'
 import { buildThemeOptions } from '../../shared/constants/dataPalettes'
 import { getUiTheme } from '../../shared/constants/uiThemes'
 import { IUCN_LABELS, GOV_LABELS, getCountry } from '../../shared/constants/parkLabels'
+import { useMapEngine } from '../map/engine/MapEngineContext'
+
+const btnCls = clsx(
+  'flex items-center justify-center w-7 h-7',
+  'bg-transparent border-0 rounded cursor-pointer',
+  'text-[var(--text-muted)] text-sm leading-none',
+  'transition-all duration-150',
+  'hover:bg-accent/20 hover:text-[var(--text-secondary)]',
+  'active:scale-90',
+)
 
 export function LegendPanel() {
   const dispatch        = useAppDispatch()
+  const engine          = useMapEngine()
   const showLegend      = useAppSelector(s => s.ui.showLegend)
   const legendCollapsed = useAppSelector(s => s.ui.legendCollapsed)
   const selectedTheme   = useAppSelector(s => s.mapStyle.selectedTheme)
@@ -27,6 +38,18 @@ export function LegendPanel() {
   const hoverIucn    = hoveredFeature?.IUCN_CAT ? (IUCN_LABELS[hoveredFeature.IUCN_CAT as string] ?? String(hoveredFeature.IUCN_CAT)) : null
   const hoverGov     = hoveredFeature?.GOV_TYPE  ? (GOV_LABELS[hoveredFeature.GOV_TYPE as string]  ?? String(hoveredFeature.GOV_TYPE))  : null
   const hoverCountry = hoveredFeature ? getCountry(hoveredFeature.ISO3 as string | undefined) : null
+
+  const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement)
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen()
+    else document.exitFullscreen()
+  }
 
   const panelClass = clsx(
     'legend-panel',
@@ -105,6 +128,19 @@ export function LegendPanel() {
           )
         })}
       </div>
+
+      {engine && (
+        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-accent/15">
+          <div className="flex items-center gap-0.5">
+            <button className={btnCls} onClick={() => engine.getMap().zoomIn()} title="Zoom in" aria-label="Zoom in">＋</button>
+            <button className={btnCls} onClick={() => engine.getMap().zoomOut()} title="Zoom out" aria-label="Zoom out">－</button>
+            <button className={btnCls} onClick={() => engine.getMap().resetNorth()} title="Reset north" aria-label="Reset north">↑</button>
+          </div>
+          <button className={btnCls} onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label="Toggle fullscreen">
+            {isFullscreen ? '✕' : '⤢'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

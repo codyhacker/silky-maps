@@ -2,10 +2,11 @@
 @import "tailwindcss/utilities";
 
 @theme {
-  --color-surface:   rgb(var(--bg-deep-rgb));
-  --color-surface-2: rgb(var(--bg-rich-rgb));
-  --color-surface-3: rgb(var(--bg-warm-rgb));
-  --color-accent:    rgb(var(--accent-rgb));
+  --color-surface:      rgb(var(--bg-deep-rgb));
+  --color-surface-2:    rgb(var(--bg-rich-rgb));
+  --color-surface-3:    rgb(var(--bg-warm-rgb));
+  --color-accent:       rgb(var(--accent-rgb));
+  --color-accent-warm:  rgb(var(--accent-warm-rgb));
 }
 
 @utility bg-panel {
@@ -18,9 +19,15 @@
   background: linear-gradient(135deg, var(--active-start), var(--active-end));
 }
 @utility bg-title-bar {
-  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.15), rgba(var(--active-rgb), 0.1));
+  background:
+    linear-gradient(135deg, rgba(var(--accent-rgb), 0.15), rgba(var(--active-rgb), 0.1)),
+    linear-gradient(145deg, rgba(var(--bg-deep-rgb), 0.97), rgba(var(--bg-rich-rgb), 0.95));
   transition: background 0.2s;
-  &:hover { background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.22), rgba(var(--active-rgb), 0.16)); }
+  &:hover {
+    background:
+      linear-gradient(135deg, rgba(var(--accent-rgb), 0.22), rgba(var(--active-rgb), 0.16)),
+      linear-gradient(145deg, rgba(var(--bg-deep-rgb), 0.97), rgba(var(--bg-rich-rgb), 0.95));
+  }
 }
 @utility text-gradient-title {
   background: linear-gradient(135deg, var(--title-start), var(--title-mid), var(--title-end));
@@ -57,6 +64,8 @@
   --popup-tip-color: rgba(26, 42, 20, 0.98);
   --option-bg: #1a2a14;
   --ctrl-icon-filter: invert(0.75) sepia(1) saturate(1.5) hue-rotate(65deg);
+  --accent-warm-hex: #9a7230;
+  --accent-warm-rgb: 154, 114, 48;
 }
 
 * {
@@ -103,6 +112,7 @@ html, body {
   filter: var(--ctrl-icon-filter);
 }
 
+
 @keyframes menuSlideIn {
   from { opacity: 0; transform: translateY(-8px) scale(0.95); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -125,11 +135,7 @@ html, body {
   font-size: 13px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   z-index: 10;
-  /* Reserve ~170px at the bottom-left for the Mapbox NavigationControl +
-     FullscreenControl stack so they're never hidden behind a fully-expanded
-     ControlPanel. The panel still scrolls internally when its content
-     exceeds this height. */
-  max-height: calc(100vh - 180px);
+  max-height: calc(100vh - 20px);
   overflow-y: auto;
   animation: slideInLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -778,8 +784,6 @@ input[type="range"]:active::-webkit-slider-thumb {
 
   .panel-select { padding: 12px 14px; font-size: 14px; }
 
-  .mapboxgl-ctrl-top-right { top: 10px; right: 10px; }
-  .mapboxgl-ctrl-group { margin: 0 0 8px 0; }
 
   .mapboxgl-popup { max-width: calc(100vw - 40px) !important; }
   .mapboxgl-popup-content { max-width: 100%; }

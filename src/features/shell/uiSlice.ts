@@ -2,8 +2,8 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 
 interface SectionsOpenState {
   filters: boolean
-  style: boolean
-  display: boolean
+  dataStyle: boolean
+  mapStyle: boolean
 }
 
 interface UIState {
@@ -17,7 +17,7 @@ interface UIState {
 }
 
 const initialState: UIState = {
-  sectionsOpen: { filters: false, style: false, display: false },
+  sectionsOpen: { filters: false, dataStyle: false, mapStyle: false },
   showControls: false,
   showLegend: false,
   legendCollapsed: true,

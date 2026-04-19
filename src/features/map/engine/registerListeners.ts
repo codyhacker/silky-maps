@@ -1,5 +1,5 @@
 import { startAppListening } from '../../../app/listenerMiddleware'
-import { setSelectedBasemap, setSelectedUiTheme } from '../styleSlice'
+import { setSelectedBasemap, setSelectedUiTheme, setUiMode, setBasemapSync } from '../styleSlice'
 import { selectAugmentationSpec } from './styleAugmentation'
 import { flyTo, fitBounds } from '../cameraSlice'
 import type { MapEngine } from './MapEngine'
@@ -28,6 +28,20 @@ export function registerMapListeners(engine: MapEngine): void {
   })
 
   startAppListening({
+    actionCreator: setUiMode,
+    effect: (_action, api) => {
+      engine.execute({ type: 'UI_THEME_CHANGE', themeId: api.getState().mapStyle.selectedUiTheme })
+    },
+  })
+
+  startAppListening({
+    actionCreator: setBasemapSync,
+    effect: (action) => {
+      if (action.payload) engine.execute({ type: 'BASEMAP_CHANGE', basemapId: 'earth' })
+    },
+  })
+
+  startAppListening({
     actionCreator: flyTo,
     effect: (action) => {
       engine.execute({ type: 'FLY_TO', options: action.payload })
@@ -41,8 +55,28 @@ export function registerMapListeners(engine: MapEngine): void {
     },
   })
 
-  // Tour lifecycle: any change to `tourActive` (set directly via setTourActive
-  // OR cleared as a side-effect of setSelectedFeature) drives the engine.
+  // Selection lifecycle: a change in selected SITE_PID drives the
+  // mask + satellite overlay (and the camera fit). Selecting null tears
+  // the overlay down and reverts the camera to its pre-selection state.
+  startAppListening({
+    predicate: (_action, currentState, previousState) => {
+      const c = currentState.parksInteraction.selectedFeature?.SITE_PID ?? null
+      const p = previousState.parksInteraction.selectedFeature?.SITE_PID ?? null
+      return c !== p
+    },
+    effect: (_action, api) => {
+      const selected = api.getState().parksInteraction.selectedFeature
+      if (selected?.SITE_PID != null) {
+        engine.selectPark(selected.SITE_PID)
+      } else {
+        engine.deselectPark()
+      }
+    },
+  })
+
+  // Tour lifecycle: layered on top of selection. `tourActive` toggles only
+  // the orbit (camera pitch + RAF rotation); the satellite/mask overlay is
+  // owned by the selection listener above.
   startAppListening({
     predicate: (_action, currentState, previousState) =>
       currentState.parksInteraction.tourActive !== previousState.parksInteraction.tourActive,

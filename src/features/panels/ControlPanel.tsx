@@ -2,7 +2,7 @@ import { clsx } from 'clsx'
 import { useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../../app/hooks'
 import { toggleSection, setShowControls } from '../shell/uiSlice'
-import { setSelectedTheme, setFillOpacity, setSelectedUiTheme, setSelectedBasemap } from '../map/styleSlice'
+import { setSelectedTheme, setFillOpacity, setSelectedUiTheme, setSelectedBasemap, setUiMode, setBasemapSync } from '../map/styleSlice'
 import { setTerrainExaggeration } from '../map/terrainSlice'
 import { fitBounds } from '../map/cameraSlice'
 import { useMapEngine } from '../map/engine/MapEngineContext'
@@ -20,7 +20,7 @@ import type { ParkSearchResult } from '../../shared/types'
 const sectionHeaderBase = clsx(
   'w-full flex justify-between items-center px-3 py-2.5 max-md:py-3.5 max-md:px-4',
   'bg-accent/10 border-0 rounded-lg',
-  'text-[var(--text-light)] text-[12px] max-md:text-[13px] font-semibold uppercase tracking-[0.5px]',
+  'text-[var(--accent-warm-hex)] text-[12px] max-md:text-[13px] font-semibold uppercase tracking-[0.5px]',
   'cursor-pointer transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
   'hover:bg-accent/20 hover:translate-x-0.5 active:scale-[0.98]'
 )
@@ -32,6 +32,8 @@ const chipBase = clsx(
   'cursor-pointer transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]',
   'hover:bg-accent/25 hover:border-accent/40 hover:-translate-y-px active:scale-[0.95]'
 )
+
+const subLabel = 'block text-[11px] text-[var(--text-muted)] mb-3 uppercase tracking-[0.3px]'
 
 export function ControlPanel() {
   const dispatch = useAppDispatch()
@@ -46,6 +48,8 @@ export function ControlPanel() {
   const terrainExag      = useAppSelector(s => s.terrain.terrainExaggeration)
   const selectedUiTheme  = useAppSelector(s => s.mapStyle.selectedUiTheme)
   const selectedBasemap  = useAppSelector(s => s.mapStyle.selectedBasemap)
+  const uiMode           = useAppSelector(s => s.mapStyle.uiMode)
+  const basemapSync      = useAppSelector(s => s.mapStyle.basemapSync)
 
   const [collapsed, setCollapsed] = useState(false)
   const [query,     setQuery]     = useState('')
@@ -154,8 +158,8 @@ export function ControlPanel() {
           )}
         </div>
 
-        {/* ── Filters section ──────────────────────────────────────────────── */}
-        <div className="mb-1 last:mb-0">
+        {/* ── Filters ─────────────────────────────────────────────────────── */}
+        <div className="mb-3 last:mb-0">
           <button
             className={clsx(sectionHeaderBase, sectionsOpen.filters && 'bg-accent/25 !rounded-b-none')}
             onClick={() => dispatch(toggleSection('filters'))}
@@ -164,9 +168,9 @@ export function ControlPanel() {
             <span className="text-sm font-normal opacity-70">{sectionsOpen.filters ? '−' : '+'}</span>
           </button>
           {sectionsOpen.filters && (
-            <div className="p-3 bg-black/15 rounded-b-lg border-t border-accent/15 animate-[expandDown_0.3s_cubic-bezier(0.16,1,0.3,1)] origin-top">
-              <div className="mb-3.5 last:mb-0">
-                <span className="block text-[11px] text-[var(--text-muted)] mb-2 uppercase tracking-[0.3px]">Category</span>
+            <div className="bg-black/15 rounded-b-lg border-t border-accent/15 animate-[expandDown_0.3s_cubic-bezier(0.16,1,0.3,1)] origin-top pt-5 pb-6 px-4">
+              <div>
+                <span className={subLabel}>Category</span>
                 <div className="flex flex-wrap gap-1.5">
                   {CATEGORY_OPTIONS.map(opt => (
                     <button
@@ -179,8 +183,8 @@ export function ControlPanel() {
                   ))}
                 </div>
               </div>
-              <div className="mb-0">
-                <span className="block text-[11px] text-[var(--text-muted)] mb-2 uppercase tracking-[0.3px]">Designation</span>
+              <div style={{ marginTop: '24px' }}>
+                <span className={subLabel}>Designation</span>
                 <select
                   className="panel-select"
                   value={selectedDesig}
@@ -195,33 +199,19 @@ export function ControlPanel() {
           )}
         </div>
 
-        {/* ── Style section ─────────────────────────────────────────────────── */}
-        <div className="mb-1 last:mb-0">
+        {/* ── Data Style ──────────────────────────────────────────────────── */}
+        <div className="mb-3 last:mb-0">
           <button
-            className={clsx(sectionHeaderBase, sectionsOpen.style && 'bg-accent/25 !rounded-b-none')}
-            onClick={() => dispatch(toggleSection('style'))}
+            className={clsx(sectionHeaderBase, sectionsOpen.dataStyle && 'bg-accent/25 !rounded-b-none')}
+            onClick={() => dispatch(toggleSection('dataStyle'))}
           >
-            <span>Style</span>
-            <span className="text-sm font-normal opacity-70">{sectionsOpen.style ? '−' : '+'}</span>
+            <span>Data Style</span>
+            <span className="text-sm font-normal opacity-70">{sectionsOpen.dataStyle ? '−' : '+'}</span>
           </button>
-          {sectionsOpen.style && (
-            <div className="p-3 bg-black/15 rounded-b-lg border-t border-accent/15 animate-[expandDown_0.3s_cubic-bezier(0.16,1,0.3,1)] origin-top">
-              <div className="mb-3.5 last:mb-0">
-                <span className="block text-[11px] text-[var(--text-muted)] mb-2 uppercase tracking-[0.3px]">Basemap</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {BASEMAP_OPTIONS.map(opt => (
-                    <button
-                      key={opt.id}
-                      className={clsx(chipBase, selectedBasemap === opt.id && 'bg-active-gradient border-[var(--active-border)] text-white animate-[chipActivate_0.25s_cubic-bezier(0.16,1,0.3,1)]')}
-                      onClick={() => dispatch(setSelectedBasemap(opt.id))}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mb-3.5 last:mb-0">
-                <span className="block text-[11px] text-[var(--text-muted)] mb-2 uppercase tracking-[0.3px]">Color by</span>
+          {sectionsOpen.dataStyle && (
+            <div className="bg-black/15 rounded-b-lg border-t border-accent/15 animate-[expandDown_0.3s_cubic-bezier(0.16,1,0.3,1)] origin-top pt-5 pb-6 px-4">
+              <div>
+                <span className={subLabel}>Color by</span>
                 <div className="flex bg-black/20 rounded-md p-[3px] gap-0.5">
                   {THEME_LABELS.map((opt, i) => (
                     <button
@@ -243,9 +233,9 @@ export function ControlPanel() {
                   ))}
                 </div>
               </div>
-              <div className="mb-3.5 last:mb-0">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="block text-[11px] text-[var(--text-muted)] uppercase tracking-[0.3px]">Opacity</span>
+              <div style={{ marginTop: '24px' }}>
+                <div className="flex justify-between items-center mb-3">
+                  <span className={subLabel + ' mb-0'}>Opacity</span>
                   <span className="text-[11px] text-[var(--text-secondary)] font-medium">{Math.round(fillOpacity * 100)}%</span>
                 </div>
                 <input
@@ -254,9 +244,26 @@ export function ControlPanel() {
                   onChange={e => dispatch(setFillOpacity(Number(e.target.value) / 100))}
                 />
               </div>
-              <div className="mb-0">
-                <span className="block text-[11px] text-[var(--text-muted)] mb-2 uppercase tracking-[0.3px]">UI Theme</span>
-                <div className="grid grid-cols-3 gap-1.5">
+            </div>
+          )}
+        </div>
+
+        {/* ── Map Style ───────────────────────────────────────────────────── */}
+        <div className="mb-3 last:mb-0">
+          <button
+            className={clsx(sectionHeaderBase, sectionsOpen.mapStyle && 'bg-accent/25 !rounded-b-none')}
+            onClick={() => dispatch(toggleSection('mapStyle'))}
+          >
+            <span>Map Style</span>
+            <span className="text-sm font-normal opacity-70">{sectionsOpen.mapStyle ? '−' : '+'}</span>
+          </button>
+          {sectionsOpen.mapStyle && (
+            <div className="bg-black/15 rounded-b-lg border-t border-accent/15 animate-[expandDown_0.3s_cubic-bezier(0.16,1,0.3,1)] origin-top pt-5 pb-6 px-4">
+
+              {/* UI Theme swatches */}
+              <div>
+                <span className={subLabel}>Theme</span>
+                <div className="grid grid-cols-4 gap-1.5">
                   {UI_THEMES.map(theme => (
                     <button
                       key={theme.id}
@@ -271,11 +278,11 @@ export function ControlPanel() {
                       title={theme.label}
                     >
                       <div
-                        className="w-9 h-[26px] max-md:w-[30px] max-md:h-[22px] rounded-[5px] relative overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
+                        className="w-full h-[22px] rounded-[4px] relative overflow-hidden shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
                         style={{ background: theme.previewGradient }}
                       >
                         <div
-                          className="absolute bottom-1 right-1 w-2 h-2 rounded-full border border-white/30"
+                          className="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full border border-white/30"
                           style={{ background: theme.previewDot }}
                         />
                       </div>
@@ -287,24 +294,84 @@ export function ControlPanel() {
                   ))}
                 </div>
               </div>
-            </div>
-          )}
-        </div>
 
-        {/* ── Display section ───────────────────────────────────────────────── */}
-        <div className="mb-1 last:mb-0">
-          <button
-            className={clsx(sectionHeaderBase, sectionsOpen.display && 'bg-accent/25 !rounded-b-none')}
-            onClick={() => dispatch(toggleSection('display'))}
-          >
-            <span>Display</span>
-            <span className="text-sm font-normal opacity-70">{sectionsOpen.display ? '−' : '+'}</span>
-          </button>
-          {sectionsOpen.display && (
-            <div className="p-3 bg-black/15 rounded-b-lg border-t border-accent/15 animate-[expandDown_0.3s_cubic-bezier(0.16,1,0.3,1)] origin-top">
-              <div className="mb-0">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="block text-[11px] text-[var(--text-muted)] uppercase tracking-[0.3px]">Terrain</span>
+              {/* Dark / Light mode toggle */}
+              <div style={{ marginTop: '24px' }}>
+                <span className={subLabel}>Mode</span>
+                <div className="flex bg-black/20 rounded-md p-[3px] gap-0.5">
+                  {(['dark', 'light'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      className={clsx(
+                        'flex-1 py-1.5 px-2',
+                        'bg-transparent border-0 rounded text-[10px] cursor-pointer capitalize',
+                        'transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.95]',
+                        uiMode === mode
+                          ? 'bg-active-gradient text-white shadow-[0_2px_8px_rgba(var(--active-rgb),0.4)]'
+                          : 'text-[var(--text-muted)] hover:bg-accent/20 hover:text-[var(--text-secondary)]'
+                      )}
+                      onClick={() => dispatch(setUiMode(mode))}
+                    >
+                      {mode === 'dark' ? '◐ Dark' : '○ Light'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Basemap */}
+              <div style={{ marginTop: '24px' }}>
+                <div className="flex justify-between items-center mb-3">
+                  <span className={subLabel + ' mb-0'}>Basemap</span>
+                  <button
+                    className={clsx(
+                      'flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] cursor-pointer',
+                      'transition-all duration-200',
+                      basemapSync
+                        ? 'border-[var(--active-border)] bg-accent/15 text-[var(--text-secondary)]'
+                        : 'border-accent/25 bg-transparent text-[var(--text-muted)] hover:border-accent/40 hover:text-[var(--text-secondary)]'
+                    )}
+                    onClick={() => dispatch(setBasemapSync(!basemapSync))}
+                    title="Sync basemap to theme"
+                  >
+                    <span>{basemapSync ? '⇄' : '⇄'}</span>
+                    <span>Sync</span>
+                  </button>
+                </div>
+                {basemapSync ? (
+                  <p className="text-[10px] text-[var(--text-muted)] italic">Basemap follows active theme</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {BASEMAP_OPTIONS.map(opt => (
+                      <button
+                        key={opt.id}
+                        className={clsx(
+                          'flex flex-col items-center gap-[5px] py-2 px-2 min-w-[52px]',
+                          'bg-transparent border border-accent/20 rounded-lg cursor-pointer',
+                          'transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]',
+                          'hover:border-accent/50 hover:bg-accent/10 hover:-translate-y-px',
+                          selectedBasemap === opt.id && 'border-[var(--active-border)] bg-accent/15 shadow-[0_0_0_2px_rgba(var(--active-rgb),0.3)]'
+                        )}
+                        onClick={() => dispatch(setSelectedBasemap(opt.id))}
+                        title={opt.label}
+                      >
+                        <div
+                          className="w-full h-[20px] rounded-[4px] shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
+                          style={{ background: opt.previewColor }}
+                        />
+                        <span className={clsx(
+                          'text-[9px] text-center whitespace-nowrap w-full',
+                          selectedBasemap === opt.id ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'
+                        )}>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Terrain */}
+              <div style={{ marginTop: '24px' }}>
+                <div className="flex justify-between items-center mb-3">
+                  <span className={subLabel + ' mb-0'}>Terrain</span>
                   <span className="text-[11px] text-[var(--text-secondary)] font-medium">{terrainExag.toFixed(1)}x</span>
                 </div>
                 <input
@@ -313,6 +380,7 @@ export function ControlPanel() {
                   onChange={e => dispatch(setTerrainExaggeration(Number(e.target.value) / 10))}
                 />
               </div>
+
             </div>
           )}
         </div>

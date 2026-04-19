@@ -47,6 +47,10 @@ export interface UiPalette {
   // Mapbox navigation control icon filter
   ctrlIconFilter: string
 
+  // Cross-hue earthy secondary accent (dusty amber / olive / warm sand per theme)
+  accentWarmHex: string
+  accentWarmRgb: string    // "R, G, B" for rgba() usage
+
   // Custom map layer colors
   mapBg: string
   mapWater: string
@@ -86,6 +90,7 @@ export interface UiTheme {
   previewGradient: string  // CSS gradient shown in swatch
   previewDot: string       // accent dot color
   palette: UiPalette
+  lightPalette?: UiPalette
 }
 
 // ─── Theme Definitions ────────────────────────────────────────────────────────
@@ -121,6 +126,8 @@ const SAGE_FOREST: UiTheme = {
     popupTipColor: 'rgba(26, 42, 20, 0.98)',
     optionBg: '#1a2a14',
     ctrlIconFilter: 'invert(0.75) sepia(1) saturate(1.5) hue-rotate(65deg)',
+    accentWarmHex: '#9a7230',
+    accentWarmRgb: '154, 114, 48',
     mapBg: '#111b0e',
     mapWater: '#182535',
     mapLandcover: '#1a2612',
@@ -200,6 +207,8 @@ const DARK_EARTH: UiTheme = {
     popupTipColor: 'rgba(46, 34, 21, 0.98)',
     optionBg: '#2e2215',
     ctrlIconFilter: 'invert(0.75) sepia(1) saturate(2) hue-rotate(20deg)',
+    accentWarmHex: '#528442',
+    accentWarmRgb: '82, 132, 66',
     mapBg: '#1c1410',
     mapWater: '#1a2838',
     mapLandcover: '#221c0e',
@@ -279,6 +288,8 @@ const SLATE_MIST: UiTheme = {
     popupTipColor: 'rgba(22, 34, 48, 0.98)',
     optionBg: '#162230',
     ctrlIconFilter: 'invert(0.75) sepia(0.5) saturate(3) hue-rotate(170deg)',
+    accentWarmHex: '#987228',
+    accentWarmRgb: '152, 114, 40',
     mapBg: '#0f1820',
     mapWater: '#0a1830',
     mapLandcover: '#141e2c',
@@ -375,6 +386,8 @@ const BOTANICA: UiTheme = {
 
     // Olive/warm icon tint (Organic green hue ~65°)
     ctrlIconFilter: 'invert(0.72) sepia(1) saturate(1.2) hue-rotate(55deg)',
+    accentWarmHex: '#6A6F4C',
+    accentWarmRgb: '106, 111, 76',
 
     // Map — deep Cocoa land, navy water for contrast
     mapBg: '#1a1008',
@@ -427,7 +440,208 @@ const BOTANICA: UiTheme = {
   },
 }
 
-export const UI_THEMES: UiTheme[] = [SAGE_FOREST, DARK_EARTH, SLATE_MIST, BOTANICA]
+// ─── Light palettes ───────────────────────────────────────────────────────────
+// Each light palette is a lighter expression of the same two-colour story.
+// Map colours are derived to match — same hue family, brighter background.
+
+const SAGE_LIGHT: UiPalette = {
+  bgDeepRgb: '236, 248, 230',
+  bgRichRgb: '220, 238, 212',
+  bgWarmRgb: '200, 228, 190',
+  accentRgb: '58, 100, 55',
+  accentHex: '#3a6437',
+  activeStart: '#5e4016',
+  activeEnd: '#4a3010',
+  activeBorder: '#7a5820',
+  activeRgb: '94, 64, 22',
+  textPrimary: '#1c3a1c',
+  textSecondary: '#3a6437',
+  textLight: '#2a5028',
+  textMuted: '#487248',
+  textMed: '#3a5c38',
+  sliderStart: '#7a5820',
+  sliderEnd: '#5e4016',
+  sliderGlowRgb: '122, 88, 32',
+  titleStart: '#1c3a1c',
+  titleMid: '#3a6437',
+  titleEnd: '#5a8457',
+  globeGlowRgb: '58, 100, 55',
+  globeAccentRgb: '80, 130, 75',
+  popupTipColor: 'rgba(220, 238, 212, 0.98)',
+  optionBg: '#dceedd',
+  ctrlIconFilter: 'invert(0.2) sepia(0.5) saturate(1.5) hue-rotate(65deg)',
+  accentWarmHex: '#7a5820',
+  accentWarmRgb: '122, 88, 32',
+  mapBg: '#ddecd5',
+  mapWater: '#4a7898',
+  mapLandcover: '#c0d8b0',
+  mapLanduse1: '#b0ccA0',
+  mapLanduse2: '#b8d4a8',
+  mapHillshadeHighlight: '#a0c090',
+  mapHillshadeAccent: '#88a878',
+  mapContour: '#80a068',
+  mapBuilding: '#b0c0a0',
+  mapRoadMinor: '#a0b490',
+  mapRoadMajor: '#88a278',
+  mapRoadHighway: '#587048',
+  mapAdmin: '#587048',
+  mapLabelCity: '#3a6437',
+  mapLabelCountry: '#1c3a1c',
+  mapLabelHalo: '#ddecd5',
+  mapFog: { color: '#c8dcc0', 'high-color': '#a0c090', 'space-color': '#4a7040', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
+  dataPalette: SAGE_FOREST.palette.dataPalette,
+}
+
+const EARTH_LIGHT: UiPalette = {
+  bgDeepRgb: '252, 242, 228',
+  bgRichRgb: '238, 225, 205',
+  bgWarmRgb: '222, 208, 182',
+  accentRgb: '122, 68, 24',
+  accentHex: '#7a4418',
+  activeStart: '#244414',
+  activeEnd: '#1c3410',
+  activeBorder: '#3c6c2c',
+  activeRgb: '36, 68, 20',
+  textPrimary: '#2a1808',
+  textSecondary: '#7a4418',
+  textLight: '#5a3010',
+  textMuted: '#744e28',
+  textMed: '#5c3c18',
+  sliderStart: '#3c6c2c',
+  sliderEnd: '#244414',
+  sliderGlowRgb: '60, 108, 44',
+  titleStart: '#2a1808',
+  titleMid: '#7a4418',
+  titleEnd: '#a06030',
+  globeGlowRgb: '122, 68, 24',
+  globeAccentRgb: '160, 96, 40',
+  popupTipColor: 'rgba(238, 225, 205, 0.98)',
+  optionBg: '#fdf5e8',
+  ctrlIconFilter: 'invert(0.2) sepia(1) saturate(2) hue-rotate(20deg)',
+  accentWarmHex: '#3c6c2c',
+  accentWarmRgb: '60, 108, 44',
+  mapBg: '#f0e2cc',
+  mapWater: '#4a6888',
+  mapLandcover: '#d0c0a0',
+  mapLanduse1: '#c4b490',
+  mapLanduse2: '#ccbca0',
+  mapHillshadeHighlight: '#c0a880',
+  mapHillshadeAccent: '#a88e68',
+  mapContour: '#a08860',
+  mapBuilding: '#c8b898',
+  mapRoadMinor: '#b8a888',
+  mapRoadMajor: '#a09070',
+  mapRoadHighway: '#785030',
+  mapAdmin: '#785030',
+  mapLabelCity: '#7a4418',
+  mapLabelCountry: '#2a1808',
+  mapLabelHalo: '#f0e2cc',
+  mapFog: { color: '#d8c0a0', 'high-color': '#b89870', 'space-color': '#584020', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
+  dataPalette: DARK_EARTH.palette.dataPalette,
+}
+
+const MIST_LIGHT: UiPalette = {
+  bgDeepRgb: '234, 242, 254',
+  bgRichRgb: '215, 228, 248',
+  bgWarmRgb: '194, 214, 242',
+  accentRgb: '40, 68, 120',
+  accentHex: '#284478',
+  activeStart: '#524012',
+  activeEnd: '#3c2e0c',
+  activeBorder: '#785a18',
+  activeRgb: '82, 64, 18',
+  textPrimary: '#121c30',
+  textSecondary: '#284478',
+  textLight: '#1c2e50',
+  textMuted: '#385480',
+  textMed: '#2a4068',
+  sliderStart: '#785a18',
+  sliderEnd: '#524012',
+  sliderGlowRgb: '120, 90, 24',
+  titleStart: '#121c30',
+  titleMid: '#284478',
+  titleEnd: '#3a5888',
+  globeGlowRgb: '40, 68, 120',
+  globeAccentRgb: '70, 100, 160',
+  popupTipColor: 'rgba(215, 228, 248, 0.98)',
+  optionBg: '#eef4fe',
+  ctrlIconFilter: 'invert(0.2) sepia(0.5) saturate(3) hue-rotate(170deg)',
+  accentWarmHex: '#785a18',
+  accentWarmRgb: '120, 90, 24',
+  mapBg: '#d8e6f5',
+  mapWater: '#3868a0',
+  mapLandcover: '#b8cce0',
+  mapLanduse1: '#a8bcd4',
+  mapLanduse2: '#b0c4dc',
+  mapHillshadeHighlight: '#a0b8cc',
+  mapHillshadeAccent: '#88a0bc',
+  mapContour: '#8098b0',
+  mapBuilding: '#b0c0d4',
+  mapRoadMinor: '#a0b0c4',
+  mapRoadMajor: '#8898ac',
+  mapRoadHighway: '#486078',
+  mapAdmin: '#486078',
+  mapLabelCity: '#284478',
+  mapLabelCountry: '#121c30',
+  mapLabelHalo: '#d8e6f5',
+  mapFog: { color: '#b0c8e0', 'high-color': '#90aac8', 'space-color': '#284860', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
+  dataPalette: SLATE_MIST.palette.dataPalette,
+}
+
+const BOTANICA_LIGHT: UiPalette = {
+  bgDeepRgb: '245, 238, 228',
+  bgRichRgb: '233, 224, 210',
+  bgWarmRgb: '218, 208, 192',
+  accentRgb: '106, 111, 76',
+  accentHex: '#6A6F4C',
+  activeStart: '#7a3018',
+  activeEnd: '#5D2510',
+  activeBorder: '#8a3a20',
+  activeRgb: '93, 37, 16',
+  textPrimary: '#231810',
+  textSecondary: '#6A6F4C',
+  textLight: '#412F26',
+  textMuted: '#806044',
+  textMed: '#604830',
+  sliderStart: '#8a3a20',
+  sliderEnd: '#7a3018',
+  sliderGlowRgb: '138, 58, 32',
+  titleStart: '#231810',
+  titleMid: '#6A6F4C',
+  titleEnd: '#806044',
+  globeGlowRgb: '106, 111, 76',
+  globeAccentRgb: '140, 145, 100',
+  popupTipColor: 'rgba(233, 224, 210, 0.98)',
+  optionBg: '#f5eedc',
+  ctrlIconFilter: 'invert(0.2) sepia(1) saturate(1.2) hue-rotate(55deg)',
+  accentWarmHex: '#6A6F4C',
+  accentWarmRgb: '106, 111, 76',
+  mapBg: '#f0e8dc',
+  mapWater: '#5878a0',
+  mapLandcover: '#d0c8b0',
+  mapLanduse1: '#c4bca8',
+  mapLanduse2: '#ccc4b0',
+  mapHillshadeHighlight: '#c0b098',
+  mapHillshadeAccent: '#a89880',
+  mapContour: '#a09070',
+  mapBuilding: '#c8baa0',
+  mapRoadMinor: '#b8a890',
+  mapRoadMajor: '#a09070',
+  mapRoadHighway: '#7a5838',
+  mapAdmin: '#6A6F4C',
+  mapLabelCity: '#6A6F4C',
+  mapLabelCountry: '#231810',
+  mapLabelHalo: '#f0e8dc',
+  mapFog: { color: '#d8c8b0', 'high-color': '#c0a880', 'space-color': '#4a3828', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
+  dataPalette: BOTANICA.palette.dataPalette,
+}
+
+export const UI_THEMES: UiTheme[] = [
+  { ...SAGE_FOREST,  lightPalette: SAGE_LIGHT },
+  { ...DARK_EARTH,   lightPalette: EARTH_LIGHT },
+  { ...SLATE_MIST,   lightPalette: MIST_LIGHT },
+  { ...BOTANICA,     lightPalette: BOTANICA_LIGHT },
+]
 
 export const DEFAULT_UI_THEME_ID = 'sage-forest'
 
@@ -435,11 +649,15 @@ export function getUiTheme(id: string): UiTheme {
   return UI_THEMES.find(t => t.id === id) ?? UI_THEMES[0]
 }
 
+export function getEffectivePalette(theme: UiTheme, mode: 'dark' | 'light' = 'dark'): UiPalette {
+  return mode === 'light' && theme.lightPalette ? theme.lightPalette : theme.palette
+}
+
 // ─── Apply theme to DOM ───────────────────────────────────────────────────────
 
-export function applyUiTheme(theme: UiTheme): void {
+export function applyUiTheme(palette: UiPalette): void {
   const el = document.documentElement
-  const p = theme.palette
+  const p = palette
   el.style.setProperty('--bg-deep-rgb', p.bgDeepRgb)
   el.style.setProperty('--bg-rich-rgb', p.bgRichRgb)
   el.style.setProperty('--bg-warm-rgb', p.bgWarmRgb)
@@ -465,6 +683,8 @@ export function applyUiTheme(theme: UiTheme): void {
   el.style.setProperty('--popup-tip-color', p.popupTipColor)
   el.style.setProperty('--option-bg', p.optionBg)
   el.style.setProperty('--ctrl-icon-filter', p.ctrlIconFilter)
+  el.style.setProperty('--accent-warm-hex', p.accentWarmHex)
+  el.style.setProperty('--accent-warm-rgb', p.accentWarmRgb)
 }
 
 // ─── Globe atmosphere / space styling ────────────────────────────────────────
