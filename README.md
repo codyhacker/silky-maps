@@ -5,8 +5,8 @@ An interactive 3D map application for visualizing the World Database on Protecte
 ## Features
 
 - Interactive 3D map with terrain exaggeration
-- Multiple basemap options including custom dark purple theme
-- Vector tile data from tile server
+- Multiple basemap options including a fully-themable custom basemap
+- Vector tile data served as a single PMTiles archive over HTTP range requests
 - Category and designation filters
 - Thematic styling by IUCN category, designation type, status, and governance
 - Collapsible control panels with smooth animations
@@ -63,7 +63,7 @@ tippecanoe -o wdpa.pmtiles -l geo -zg \
 ```
 
 The layer name **must** be `geo` (matches `SOURCE_LAYER` in
-`src/features/map-core/styleAugmentation.ts`).
+`src/features/map/engine/styleAugmentation.ts` and `MapEngine.ts`).
 
 ### 5. Run the development server
 ```bash
@@ -81,6 +81,98 @@ npm run build
 |----------|-------------|---------|
 | `VITE_MAPBOX_ACCESS_TOKEN` | Mapbox GL access token | Required |
 | `VITE_PMTILES_URL` | Public URL to the WDPA `.pmtiles` file | `http://localhost:8080/wdpa.pmtiles` |
+
+## How the PMTiles ↔ Mapbox integration works
+
+Mapbox GL JS v3.21+ ships with **native PMTiles support** in its vector
+source. There is no `addProtocol`, no `mapbox-gl-pmtiles-provider` shim,
+and no `/{z}/{x}/{y}.pbf` tile server — Mapbox detects the `.pmtiles`
+extension and switches to PMTiles mode automatically. Three pieces make it
+work end-to-end in this app:
+
+### 1. The vector source declaration
+
+In [`src/features/map/engine/styleAugmentation.ts`](src/features/map/engine/styleAugmentation.ts):
+
+```ts
+'national-parks': {
+  type: 'vector',
+  url: PMTILES_URL,           // single .pmtiles file on R2/S3/etc.
+  promoteId: 'SITE_PID',      // use SITE_PID as feature.id (see below)
+}
+```
+
+Note `url:` (not `tiles: [...]`) — this is what tells Mapbox to read the
+URL as a single archive instead of a tile template. Layers in the same
+spec reference `'source-layer': 'geo'`, which is the layer name baked
+into the PMTiles by tippecanoe (`-l geo` in step 4 above).
+
+### 2. HTTP Range requests + CORS
+
+Mapbox doesn't download the whole `.pmtiles` file. It issues a series of
+HTTP `Range` requests:
+
+1. First range: bytes `0-127` to read the PMTiles header (magic + root
+   directory offset + root-tile offset, etc.).
+2. Then byte ranges for the directory entries it needs.
+3. Then byte ranges for the individual tiles the current viewport needs,
+   on demand, as you pan/zoom.
+
+This is why the bucket CORS config has to allow the `Range` request
+header *and* expose `Content-Range`, `Accept-Ranges`, and `ETag` in the
+response — Mapbox uses those response headers to validate that the host
+actually supports range requests, and to cache directory pages between
+requests. Strip any of those headers and PMTiles silently falls back to a
+broken state (the request "succeeds" but Mapbox can't parse offsets).
+
+### 3. The Mapbox worker fix (Vite-specific)
+
+PMTiles tile fetches happen inside Mapbox's Web Worker. By default Mapbox
+ships its worker as an inlined string and instantiates it via `Blob` URL.
+Under Vite, the blob URL inherits Vite's HMR helper injections (e.g.
+`__vite__injectQuery`), which then crash inside the worker context where
+those helpers don't exist — the worker dies, and PMTiles fetches silently
+stop. See [mapbox-gl-js#12656](https://github.com/mapbox/mapbox-gl-js/issues/12656).
+
+The fix in [`MapEngine.ts`](src/features/map/engine/MapEngine.ts) is to
+let Vite bundle Mapbox's worker as a real module with a stable URL:
+
+```ts
+import MapboxWorker from 'mapbox-gl/dist/mapbox-gl-csp-worker?worker'
+;(mapboxgl as any).workerClass = MapboxWorker
+```
+
+This *must* run before the first `new mapboxgl.Map(...)` call (it does —
+the import sits at the top of `MapEngine.ts`). Without this, you'll see
+the basemap render fine but the parks layer never appears, often with no
+console error.
+
+### Why `promoteId: 'SITE_PID'` matters
+
+Mapbox's `setFeatureState({ source, sourceLayer, id }, ...)` keys on the
+*feature id*, not on arbitrary properties. Tippecanoe doesn't assign
+feature ids by default — every park comes through as `feature.id =
+undefined`. `promoteId` tells Mapbox "use the `SITE_PID` property as the
+feature id," which is how hover highlights, the `selected` outline-only
+state during the orbit tour, and the feature-state persistence across
+tile refetches all stay tied to the right park.
+
+### Putting it all together
+
+```
+WDPA GeoJSON
+   │  tippecanoe -o wdpa.pmtiles -l geo …
+   ▼
+wdpa.pmtiles  (single ~hundreds-of-MB file)
+   │  HTTP PUT to Cloudflare R2 / S3 / any range-capable static host
+   ▼
+R2 bucket (with CORS exposing Range + Content-Range + Accept-Ranges)
+   │  HTTP Range requests, on demand, per viewport tile
+   ▼
+Mapbox GL JS vector source (PMTiles mode, decoded inside the Vite-bundled
+worker, promoted to feature.id = SITE_PID, rendered by parks-fill /
+parks-outline layers)
+```
 
 ## Tech Stack
 
