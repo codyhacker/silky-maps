@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* ─── Theme tokens (defaults = Sage Forest) ─────────────────────────────────── */
 :root {
   --bg-deep-rgb: 17, 27, 14;
@@ -46,7 +48,7 @@ html, body {
 
 .map-container {
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   position: relative;
 }
 
@@ -667,7 +669,7 @@ input[type="range"]:active::-webkit-slider-thumb {
   backdrop-filter: blur(16px);
   border: 1px solid rgba(var(--accent-rgb), 0.25);
   border-radius: 18px 18px 0 0;
-  padding: 20px 22px 28px;
+  padding: 20px 22px calc(28px + env(safe-area-inset-bottom));
   z-index: 30;
   box-shadow: 0 -4px 40px rgba(0, 0, 0, 0.5);
   transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1095,7 +1097,7 @@ input[type="range"]:active::-webkit-slider-thumb {
 .mobile-toggles {
   display: none;
   position: absolute;
-  bottom: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
@@ -1213,6 +1215,7 @@ input[type="range"]:active::-webkit-slider-thumb {
     z-index: 25;
     padding: 20px;
     padding-top: 16px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
     /* cancel desktop entry animations — they use translateX which breaks the mobile translateY slide */
     animation: none;
   }
@@ -1241,7 +1244,7 @@ input[type="range"]:active::-webkit-slider-thumb {
 
   .chip { padding: 10px 14px; font-size: 12px; }
 
-  .basemap-control { top: auto; bottom: 100px; right: 16px; }
+  .basemap-control { top: auto; bottom: calc(100px + env(safe-area-inset-bottom)); right: 16px; }
 
   .basemap-toggle { width: 40px; height: 40px; }
 
@@ -1296,7 +1299,7 @@ input[type="range"]:active::-webkit-slider-thumb {
   .legend-panel,
   .control-panel { max-height: 85vh; }
 
-  .mobile-toggles { bottom: 12px; }
+  .mobile-toggles { bottom: calc(12px + env(safe-area-inset-bottom)); }
   .mobile-toggle { width: 40px; height: 40px; }
   .section-header { padding: 10px 14px; }
   .section-content { padding: 10px; }
