@@ -7,31 +7,39 @@ import mapboxgl from 'mapbox-gl'
 // https://github.com/mapbox/mapbox-gl-js/issues/12656.
 import MapboxWorker from 'mapbox-gl/dist/mapbox-gl-csp-worker?worker'
 import { diff } from '@mapbox/mapbox-gl-style-spec'
-import mask from '@turf/mask'
 
 ;(mapboxgl as unknown as { workerClass: typeof Worker }).workerClass = MapboxWorker as unknown as typeof Worker
 import type { AppStore } from '../../../app/store'
 import { setHoveredFeature, setSelectedFeature, setTourActive } from '../../parks/interactionSlice'
-import { fitBounds, cameraObserved } from '../cameraSlice'
+import { cameraObserved } from '../cameraSlice'
 import type { HoveredFeatureProperties, ParkSearchResult } from '../../../shared/types'
 import { BASEMAP_OPTIONS } from '../../../shared/constants/basemaps'
-import { getUiTheme, applyUiTheme, applyMapFog, buildCustomMapStyle, getCustomLayerPaints } from '../../../shared/constants/uiThemes'
+import { getUiTheme, getEffectivePalette, applyUiTheme, applyMapFog, buildCustomMapStyle, getCustomLayerPaints } from '../../../shared/constants/uiThemes'
 import type { MapCommand } from './commands'
 import { selectAugmentationSpec, type AugmentationSpec } from './styleAugmentation'
+import { stitchSatelliteTiles } from './satelliteTiles'
 
 const SOURCE_LAYER = 'geo'
 const CUSTOM_BASEMAP_ID = 'earth'
 
-// Tour overlay — Mapbox satellite tiles scoped to the selected park's bbox,
-// PLUS a turf-computed inverse-polygon mask that hides the satellite outside
-// the polygon shape. Both layers are inserted below the first road layer so
-// roads, admin boundaries, labels, and other parks still render on top of
-// the mask — only the land/water/hillshade background is covered in the ring.
-//   basemap fills+hillshade → satellite → mask → roads/labels → parks-fill → parks-outline
-const TOUR_SATELLITE_SRC_ID = 'tour-satellite-src'
-const TOUR_SATELLITE_LAYER_ID = 'tour-satellite'
-const TOUR_MASK_SRC_ID = 'tour-mask-src'
-const TOUR_MASK_LAYER_ID = 'tour-mask'
+// Selection overlay — Mapbox satellite tiles, polygon-clipped at canvas
+// stitch time so the resulting image already has transparent edges that
+// match the park silhouette exactly. The image source is inserted below
+// the first road layer so road/admin/label vector layers still render on
+// top:
+//   basemap fills+hillshade → satellite → roads/labels → parks-fill → parks-outline
+//
+// Lifecycle: added on `selectPark` (click), removed on `deselectPark` (close).
+// The orbit tour (Full detail) toggles independently on top of this overlay.
+const SEL_SATELLITE_SRC_ID = 'selection-satellite-src'
+const SEL_SATELLITE_LAYER_ID = 'selection-satellite'
+
+interface CameraSnapshot {
+  center: [number, number]
+  zoom: number
+  bearing: number
+  pitch: number
+}
 
 // ─── Geometry helpers ─────────────────────────────────────────────────────────
 
@@ -83,13 +91,34 @@ export class MapEngine {
   // ever been ready?", not "is everything fully tiled?".
   private styleReady = false
 
-  // ── Tour state ──────────────────────────────────────────────────────────
-  // siteId of the park currently being toured (also the id we set the
-  // `selected` feature-state on so the layers render outline-only).
+  // ── Selection state (click → mask + satellite overlay) ──────────────────
+  // siteId of the park currently selected (also the id we set the
+  // `selected` feature-state on so the parks layer renders outline-only).
+  private selectedSiteId: string | number | null = null
+  // Camera state captured at the moment of *first* selection (preserved across
+  // park-to-park transitions so closing always reverts to the user's
+  // pre-interaction view).
+  private preSelectionCamera: CameraSnapshot | null = null
+  // Source-data listener used to retry overlay application when the selected
+  // park's tiles haven't streamed in yet (e.g. selection from a search result
+  // that flew the camera somewhere new).
+  private selectionRetry: ((e: { sourceId?: string }) => void) | null = null
+  // Cancels an in-flight satellite tile stitch when the selection changes
+  // mid-fetch (rapid re-clicks, basemap swap, panel close).
+  private satelliteAbort: AbortController | null = null
+  // Active blob: URL backing the satellite image source. Held so we can
+  // `URL.revokeObjectURL` on teardown — leaving these uncollected pins the
+  // canvas in browser memory.
+  private satelliteBlobUrl: string | null = null
+
+  // ── Tour state (Full detail → orbit on top of selection) ────────────────
   private tourSiteId: string | number | null = null
   private tourRaf: number | null = null
   private tourBearingStart = 0
   private tourStartTs = 0
+  // Bearing/pitch captured when the orbit starts so we can restore the camera
+  // when the tour ends programmatically (Show less / panel close).
+  private preTourCamera: { bearing: number; pitch: number } | null = null
 
   constructor(container: HTMLDivElement, store: AppStore) {
     this.store = store
@@ -115,8 +144,6 @@ export class MapEngine {
       attributionControl: false,
     })
 
-    this.map.addControl(new mapboxgl.NavigationControl(), 'bottom-left')
-    this.map.addControl(new mapboxgl.FullscreenControl(), 'bottom-left')
 
     this.map.on('load', () => {
       this.styleReady = true
@@ -130,32 +157,174 @@ export class MapEngine {
   }
 
   destroy(): void {
-    this.stopTour()
+    this.stopTour({ restoreCamera: false })
+    this.clearSelectionOverlay()
     this.map.remove()
   }
 
-  // ─── Tour: orbit-around-the-selected-park ────────────────────────────────
+  // ─── Selection: click → mask + satellite overlay ─────────────────────────
 
-  startTour(siteId: string | number): void {
-    // Re-entrant: stop any prior tour first (cleans feature-state + RAF)
-    this.stopTour()
+  // Marks a park as selected and overlays the satellite-inside-mask styling
+  // around it. Idempotent for the same `siteId` (re-applies overlay only —
+  // useful after a basemap swap nukes the live style).
+  //
+  // If the park's tiles aren't loaded yet (e.g. selection arrived from a
+  // search result that flew the camera somewhere new), we register a
+  // one-shot `sourcedata` listener that retries once the parks source streams
+  // in the missing geometry.
+  selectPark(siteId: string | number): void {
+    const reapplying = this.selectedSiteId === siteId
+
+    if (!reapplying && this.selectedSiteId !== null) {
+      // Transitioning park-to-park: tear down old overlay + tour, but keep
+      // `preSelectionCamera` so the close action still reverts to the user's
+      // original (pre-first-click) camera.
+      this.stopTour({ restoreCamera: false })
+      this.clearSelectionOverlayLayers()
+    }
+
+    this.cancelSelectionRetry()
+
+    if (!reapplying) {
+      const c = this.map.getCenter()
+      // Capture only if we don't already have a snapshot (preserve original
+      // pre-selection state across park-to-park transitions and basemap
+      // swaps that re-run selectPark).
+      if (!this.preSelectionCamera) {
+        this.preSelectionCamera = {
+          center: [c.lng, c.lat],
+          zoom: this.map.getZoom(),
+          bearing: this.map.getBearing(),
+          pitch: this.map.getPitch(),
+        }
+      }
+      this.selectedSiteId = siteId
+    }
 
     const result = this.getFeatureBoundsAndGeometry(siteId)
     if (!result) {
-      // Could happen if the user clicked the panel before tiles for this
-      // park are loaded at the current zoom. Bail silently — they can
-      // re-toggle once the camera settles.
+      // Tiles not in cache yet. Wait for the parks source to stream in, then
+      // retry. Keep selectedSiteId set so `clearSelectionOverlayLayers()`
+      // (called by deselect) still wipes feature-state if user cancels first.
+      this.scheduleSelectionRetry(siteId)
       return
     }
-    const { bounds, geometry } = result
 
-    this.tourSiteId = siteId
+    this.applySelectionOverlay(siteId, result.bounds, result.geometry)
+
+    if (!reapplying) {
+      this.map.fitBounds(result.bounds, {
+        padding: 60,
+        maxZoom: 10,
+        duration: 1200,
+      })
+    }
+  }
+
+  // Tears down the selection overlay AND the tour, then restores the camera
+  // to its pre-selection state. Triggered by closing the detail panel.
+  deselectPark(): void {
+    this.stopTour({ restoreCamera: false })
+    this.clearSelectionOverlay()
+
+    if (this.preSelectionCamera) {
+      const snap = this.preSelectionCamera
+      this.preSelectionCamera = null
+      this.map.easeTo({
+        center: snap.center,
+        zoom: snap.zoom,
+        bearing: snap.bearing,
+        pitch: snap.pitch,
+        duration: 1000,
+      })
+    }
+  }
+
+  private clearSelectionOverlay(): void {
+    this.cancelSelectionRetry()
+    this.clearSelectionOverlayLayers()
+    this.selectedSiteId = null
+  }
+
+  // Removes feature-state + satellite/mask layers but does NOT clear
+  // `selectedSiteId` or `preSelectionCamera`. Used by both the full deselect
+  // path and the park-to-park transition inside `selectPark`.
+  private clearSelectionOverlayLayers(): void {
+    if (this.selectedSiteId !== null && this.map.getSource('national-parks')) {
+      this.map.setFeatureState(
+        { source: 'national-parks', sourceLayer: SOURCE_LAYER, id: this.selectedSiteId },
+        { selected: false },
+      )
+    }
+    this.removeSelectionLayers()
+  }
+
+  private scheduleSelectionRetry(siteId: string | number): void {
+    this.cancelSelectionRetry()
+    const handler = (e: { sourceId?: string }): void => {
+      if (e.sourceId !== 'national-parks') return
+      // Selection may have changed while we were waiting; bail if so.
+      if (this.selectedSiteId !== siteId) {
+        this.cancelSelectionRetry()
+        return
+      }
+      const result = this.getFeatureBoundsAndGeometry(siteId)
+      if (!result) return  // tiles still streaming, wait for next event
+      this.cancelSelectionRetry()
+      this.applySelectionOverlay(siteId, result.bounds, result.geometry)
+    }
+    this.selectionRetry = handler
+    this.map.on('sourcedata', handler)
+  }
+
+  private cancelSelectionRetry(): void {
+    if (this.selectionRetry) {
+      this.map.off('sourcedata', this.selectionRetry)
+      this.selectionRetry = null
+    }
+  }
+
+  private applySelectionOverlay(
+    siteId: string | number,
+    bounds: [[number, number], [number, number]],
+    geometry: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>,
+  ): void {
     this.map.setFeatureState(
       { source: 'national-parks', sourceLayer: SOURCE_LAYER, id: siteId },
       { selected: true },
     )
+    // Fire-and-forget — feature-state highlight is instant; satellite +
+    // mask materialise once the tile fetch + stitch resolves. Race
+    // protection lives inside `addSelectionSatellite`.
+    void this.addSelectionSatellite(siteId, bounds, geometry)
+  }
 
-    this.addTourSatellite(bounds, geometry)
+  // ─── Tour: orbit-around-the-selected-park ────────────────────────────────
+
+  // Begins the orbit animation around the currently-selected park. Selection
+  // (mask + satellite) must already be active — `startTour` is purely the
+  // camera/RAF layer on top.
+  startTour(siteId: string | number): void {
+    // Selection must match — guard against stale dispatches.
+    if (this.selectedSiteId !== siteId) return
+    if (this.tourSiteId === siteId) return  // already orbiting
+
+    // Re-entrant safety for the rare case of a tour swap without deselect.
+    this.stopTour({ restoreCamera: false })
+
+    const result = this.getFeatureBoundsAndGeometry(siteId)
+    if (!result) {
+      // Tiles disappeared between selection and tour start (very edge case).
+      // Bail silently — user can re-toggle.
+      return
+    }
+    const { bounds } = result
+
+    this.preTourCamera = {
+      bearing: this.map.getBearing(),
+      pitch: this.map.getPitch(),
+    }
+    this.tourSiteId = siteId
 
     this.map.fitBounds(bounds, {
       padding: 50,
@@ -187,7 +356,11 @@ export class MapEngine {
     this.map.on('pitchstart', this.onUserInteraction as any)
   }
 
-  stopTour(): void {
+  // `restoreCamera` controls whether we ease bearing/pitch back to their
+  // pre-tour values. Programmatic stops (Show less, panel close) restore;
+  // user-gesture stops do not (the user is actively driving the camera —
+  // fighting them would feel awful).
+  stopTour(opts: { restoreCamera?: boolean } = {}): void {
     if (this.tourRaf !== null) {
       cancelAnimationFrame(this.tourRaf)
       this.tourRaf = null
@@ -201,99 +374,86 @@ export class MapEngine {
     this.map.off('pitchstart', this.onUserInteraction as any)
 
     if (this.tourSiteId !== null) {
-      // Source may be gone if we're tearing down (e.g. during a basemap swap).
-      // Guard so we don't throw inside Mapbox internals.
-      if (this.map.getSource('national-parks')) {
-        this.map.setFeatureState(
-          { source: 'national-parks', sourceLayer: SOURCE_LAYER, id: this.tourSiteId },
-          { selected: false },
-        )
-      }
       this.tourSiteId = null
+      const restore = opts.restoreCamera ?? true
+      if (restore && this.preTourCamera) {
+        this.map.easeTo({
+          bearing: this.preTourCamera.bearing,
+          pitch: this.preTourCamera.pitch,
+          duration: 1000,
+        })
+      }
+      this.preTourCamera = null
     }
-
-    this.removeTourSatellite()
   }
 
-  // Add a Mapbox satellite raster source bounded to the park's bbox, then add
-  // a turf-computed inverse-polygon mask above it so satellite only shows
-  // *inside* the polygon shape. Layer order is critical: satellite first
-  // (below the mask, above the basemap), mask second (between satellite and
-  // parks-fill, hiding satellite outside the polygon).
-  private addTourSatellite(
+  // Pre-fetches Mapbox satellite tiles covering the park's bbox at an
+  // adaptive zoom (highest z whose grid fits inside ~4096px), stitches them
+  // into a single canvas clipped to the park polygon at stitch time, and
+  // adds the result as a Mapbox `image` source. The clipped PNG has
+  // transparent edges that match the silhouette exactly — no separate
+  // mask layer required, and the basemap shows through naturally outside
+  // the park.
+  //
+  // Async: the feature-state highlight is applied immediately by the caller;
+  // the satellite materialises here once the fetch + stitch completes.
+  // `forSiteId` is the selection at the moment of dispatch — if the user
+  // re-selects mid-fetch, the abort signal cancels the in-flight requests
+  // and we bail before mutating the live style.
+  private async addSelectionSatellite(
+    forSiteId: string | number,
     bounds: [[number, number], [number, number]],
     geometry: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>,
-  ): void {
-    if (this.map.getSource(TOUR_SATELLITE_SRC_ID)) return  // re-entrant safety
+  ): Promise<void> {
+    if (this.map.getSource(SEL_SATELLITE_SRC_ID)) return  // already added
 
-    const token = mapboxgl.accessToken
-    this.map.addSource(TOUR_SATELLITE_SRC_ID, {
-      type: 'raster',
-      tiles: [
-        `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token=${token}`,
-      ],
-      tileSize: 256,
-      // [west, south, east, north] — Mapbox skips tile requests outside this.
-      bounds: [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]],
-      attribution: '© Mapbox · DigitalGlobe',
+    // Cancel any prior fetch (rapid re-clicks) before starting a new one.
+    this.satelliteAbort?.abort()
+    const abort = new AbortController()
+    this.satelliteAbort = abort
+
+    const token = mapboxgl.accessToken ?? ''
+    let stitched
+    try {
+      stitched = await stitchSatelliteTiles(bounds, geometry, token, abort.signal)
+    } catch (err) {
+      if ((err as { name?: string }).name === 'AbortError') return
+      console.warn('[MapEngine] satellite tile stitch failed', err)
+      if (this.satelliteAbort === abort) this.satelliteAbort = null
+      return
+    }
+
+    // Selection (or basemap) may have changed during the fetch. Discard the
+    // stitched blob and bail — a fresh `addSelectionSatellite` will run for
+    // the new state.
+    if (
+      this.satelliteAbort !== abort ||
+      this.selectedSiteId !== forSiteId ||
+      this.map.getSource(SEL_SATELLITE_SRC_ID)
+    ) {
+      URL.revokeObjectURL(stitched.imageUrl)
+      return
+    }
+    this.satelliteAbort = null
+    this.satelliteBlobUrl = stitched.imageUrl
+
+    this.map.addSource(SEL_SATELLITE_SRC_ID, {
+      type: 'image',
+      url: stitched.imageUrl,
+      coordinates: stitched.coordinates,
     })
 
-    // Inverse mask = (padded bbox) − park polygon.
-    //
-    // Mapbox's raster `bounds` only restricts which tiles get *requested* —
-    // tiles that intersect the bbox still render all their pixels, so
-    // satellite leaks past the strict bbox by up to a tile width. We pad the
-    // mask polygon generously to cover that leak. Keeping the satellite
-    // source's `bounds` tight (above) means we still don't fetch extra tiles;
-    // the pad only affects the cover layer.
-    //
-    // 50% of the bbox dimension on each side, clamped to at least ~5km
-    // (≈0.05°) so small parks still get enough margin to swallow tile-edge
-    // pixels at any zoom.
-    const padX = Math.max((bounds[1][0] - bounds[0][0]) * 0.5, 0.05)
-    const padY = Math.max((bounds[1][1] - bounds[0][1]) * 0.5, 0.05)
-    const padded = {
-      west:  bounds[0][0] - padX,
-      south: bounds[0][1] - padY,
-      east:  bounds[1][0] + padX,
-      north: bounds[1][1] + padY,
-    }
-    const bboxPolygon: GeoJSON.Feature<GeoJSON.Polygon> = {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[
-          [padded.west, padded.south],
-          [padded.east, padded.south],
-          [padded.east, padded.north],
-          [padded.west, padded.north],
-          [padded.west, padded.south],
-        ]],
-      },
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const inverse = mask(geometry as any, bboxPolygon as any) as GeoJSON.Feature
-
-    this.map.addSource(TOUR_MASK_SRC_ID, {
-      type: 'geojson',
-      data: inverse,
-    })
-
-    const palette = getUiTheme(this.store.getState().mapStyle.selectedUiTheme).palette
-
-    // Insert below roads so road/admin/label vector layers render on top of the
-    // mask — only the land background is covered in the bbox ring, not features.
-    // Falls back to parks-fill on non-earth basemaps.
+    // Insert below roads so road/admin/label vector layers render on top of
+    // the satellite. Falls back to parks-fill on non-earth basemaps.
     const before = this.map.getLayer('road-minor')
       ? 'road-minor'
       : this.map.getLayer('parks-fill') ? 'parks-fill' : undefined
 
     this.map.addLayer(
       {
-        id: TOUR_SATELLITE_LAYER_ID,
+        id: SEL_SATELLITE_LAYER_ID,
         type: 'raster',
-        source: TOUR_SATELLITE_SRC_ID,
+        source: SEL_SATELLITE_SRC_ID,
         paint: {
           'raster-opacity': 1,
           'raster-fade-duration': 300,
@@ -301,34 +461,26 @@ export class MapEngine {
       },
       before,
     )
-
-    this.map.addLayer(
-      {
-        id: TOUR_MASK_LAYER_ID,
-        type: 'fill',
-        source: TOUR_MASK_SRC_ID,
-        paint: {
-          'fill-color': palette.mapBg,
-          'fill-opacity': 1,
-          'fill-antialias': true,
-        },
-      },
-      before,
-    )
   }
 
-  private removeTourSatellite(): void {
-    if (this.map.getLayer(TOUR_MASK_LAYER_ID)) {
-      this.map.removeLayer(TOUR_MASK_LAYER_ID)
+  private removeSelectionLayers(): void {
+    // Cancel any in-flight fetch — its callback would no-op anyway thanks to
+    // the `selectedSiteId` guard, but aborting saves the bandwidth.
+    this.satelliteAbort?.abort()
+    this.satelliteAbort = null
+
+    if (this.map.getLayer(SEL_SATELLITE_LAYER_ID)) {
+      this.map.removeLayer(SEL_SATELLITE_LAYER_ID)
     }
-    if (this.map.getSource(TOUR_MASK_SRC_ID)) {
-      this.map.removeSource(TOUR_MASK_SRC_ID)
+    if (this.map.getSource(SEL_SATELLITE_SRC_ID)) {
+      this.map.removeSource(SEL_SATELLITE_SRC_ID)
     }
-    if (this.map.getLayer(TOUR_SATELLITE_LAYER_ID)) {
-      this.map.removeLayer(TOUR_SATELLITE_LAYER_ID)
-    }
-    if (this.map.getSource(TOUR_SATELLITE_SRC_ID)) {
-      this.map.removeSource(TOUR_SATELLITE_SRC_ID)
+
+    // Release the blob: the stitched canvas is otherwise pinned in browser
+    // memory by the URL alone, even after the source is removed.
+    if (this.satelliteBlobUrl) {
+      URL.revokeObjectURL(this.satelliteBlobUrl)
+      this.satelliteBlobUrl = null
     }
   }
 
@@ -352,8 +504,13 @@ export class MapEngine {
   }
 
   // Class-property so we can pass the same reference to .on() and .off().
+  // Stops the orbit *without* restoring the camera (the user is actively
+  // moving it — fighting them would feel awful) and syncs Redux so the
+  // detail panel flips its "Show less" button back to "Full details".
   private onUserInteraction = (e: { originalEvent?: Event }): void => {
-    if (e.originalEvent) this.stopTour()
+    if (!e.originalEvent) return
+    this.stopTour({ restoreCamera: false })
+    this.store.dispatch(setTourActive(false))
   }
 
   // Collects every tile-piece sharing this SITE_PID and returns:
@@ -470,20 +627,28 @@ export class MapEngine {
     const basemap = BASEMAP_OPTIONS.find(b => b.id === basemapId)
     if (!basemap) return
 
-    // A tour pins satellite/mask layers and `feature-state: selected` onto
-    // the live style. `setStyle()` would orphan all of that (RAF still
-    // spinning, popup still showing "Show less"). Tear it down cleanly and
-    // sync Redux so the panel UI flips back to "Full detail".
+    // A live tour has a RAF loop spinning on the soon-to-be-gone style; sync
+    // Redux so the panel UI flips back to "Full details". The selection
+    // (mask + satellite) survives the swap — we re-apply it after style.load
+    // so the user keeps their context.
     if (this.tourSiteId !== null) {
-      this.stopTour()
+      this.stopTour({ restoreCamera: false })
       this.store.dispatch(setTourActive(false))
     }
+
+    // `setStyle()` nukes the satellite/mask layers from the live style but
+    // preserves our `selectedSiteId` / `preSelectionCamera` so the post-load
+    // re-apply path can restore the overlay (and the close action still
+    // reverts to the user's original camera).
+    const previouslySelected = this.selectedSiteId
+    this.removeSelectionLayers()
+    this.cancelSelectionRetry()
 
     this.currentBasemapId = basemapId
     this.currentAugmentation = null
 
     const style = basemap.style === null
-      ? buildCustomMapStyle(getUiTheme(this.store.getState().mapStyle.selectedUiTheme).palette)
+      ? buildCustomMapStyle(this.getEffectivePalette())
       : basemap.style
 
     this.styleReady = false
@@ -495,12 +660,24 @@ export class MapEngine {
       // after the new style settles.
       this.map.setProjection('globe')
       this.addDataLayers()
+
+      // Re-apply selection overlay on the fresh style. `selectPark` is
+      // idempotent for the same id — it skips the camera save + fitBounds
+      // and just re-paints the feature-state + satellite/mask.
+      if (previouslySelected !== null) {
+        this.selectPark(previouslySelected)
+      }
     })
   }
 
+  private getEffectivePalette() {
+    const s = this.store.getState().mapStyle
+    return getEffectivePalette(getUiTheme(s.selectedUiTheme), s.uiMode)
+  }
+
   private handleUiThemeChange(themeId: string): void {
-    const theme = getUiTheme(themeId)
-    applyUiTheme(theme)
+    const palette = getEffectivePalette(getUiTheme(themeId), this.store.getState().mapStyle.uiMode)
+    applyUiTheme(palette)
 
     // Style hasn't finished its first/next load yet — `addDataLayers` runs on
     // `'load'` / `'style.load'` and re-reads the live theme, so this change
@@ -508,14 +685,14 @@ export class MapEngine {
     if (!this.styleReady) return
 
     // Atmosphere/space — fog is a map-level property, no style reload needed.
-    applyMapFog(this.map, theme.palette)
+    applyMapFog(this.map, palette)
 
     // NOTE: deliberately not gated by `map.isStyleLoaded()` — that returns
     // false while *any* source (PMTiles, DEM tiles) is streaming, even though
     // `setPaintProperty` works fine in that state. Per-layer `getLayer`
     // guards keep us safe if a particular layer isn't in the active style.
     if (this.currentBasemapId === CUSTOM_BASEMAP_ID) {
-      for (const { layerId, property, value } of getCustomLayerPaints(theme.palette)) {
+      for (const { layerId, property, value } of getCustomLayerPaints(palette)) {
         if (this.map.getLayer(layerId)) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           this.map.setPaintProperty(layerId, property as any, value)
@@ -523,9 +700,6 @@ export class MapEngine {
       }
     }
 
-    if (this.map.getLayer(TOUR_MASK_LAYER_ID)) {
-      this.map.setPaintProperty(TOUR_MASK_LAYER_ID, 'fill-color', theme.palette.mapBg)
-    }
   }
 
   private addDataLayers(): void {
@@ -546,7 +720,7 @@ export class MapEngine {
     // swap, so any UI-theme change that happened while the style was still
     // loading (and was therefore skipped by `handleUiThemeChange`'s
     // `isStyleLoaded()` guard) gets reconciled here.
-    const palette = getUiTheme(this.store.getState().mapStyle.selectedUiTheme).palette
+    const palette = this.getEffectivePalette()
 
     // Atmosphere/space — repaint regardless of basemap.
     applyMapFog(this.map, palette)
@@ -665,7 +839,9 @@ export class MapEngine {
       this.store.dispatch(setHoveredFeature(null))
     })
 
-    // Click: open detail panel + fly to park bounds
+    // Click: open detail panel. The selection listener (registerListeners)
+    // routes the resulting state change into `engine.selectPark`, which owns
+    // both the satellite/mask overlay and the camera framing.
     this.map.on('click', (e) => {
       const features = this.map.queryRenderedFeatures(e.point, { layers: ['parks-fill'] })
 
@@ -673,11 +849,6 @@ export class MapEngine {
         const feature = features[0]
         const props = feature.properties as HoveredFeatureProperties
         this.store.dispatch(setSelectedFeature(props))
-
-        const bounds = getBoundsFromGeometry(feature.geometry as GeoJSON.Geometry)
-        if (bounds) {
-          this.store.dispatch(fitBounds({ bounds, padding: 60, maxZoom: 10 }))
-        }
       } else {
         this.store.dispatch(setSelectedFeature(null))
       }

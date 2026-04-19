@@ -56,13 +56,27 @@ The only class that holds a `mapboxgl.Map` instance and calls Mapbox GL methods.
 ### Data flow for map state
 `selectAugmentationSpec` in `styleAugmentation.ts` is the single RTK selector that derives the complete Mapbox layer/source spec from Redux state (theme, filters, terrain, opacity). It uses `createSelector` so it only re-evaluates when inputs change. The listener middleware diffs the previous vs. next spec and calls `engine.execute({ type: 'STYLE_RECONCILE', spec })`, which in turn diffs at the Mapbox style-spec level using `@mapbox/mapbox-gl-style-spec`'s `diff()`. **Never add data layers directly to MapEngine** — add them to `selectAugmentationSpec` instead.
 
-### Tour mode
-Clicking a park and opening "Full detail" activates the orbit tour. `setTourActive(true)` in `parksInteraction` triggers the listener in `registerListeners.ts` → `engine.startTour(siteId)`. The engine:
-1. Fetches the park's tile geometry via `querySourceFeatures`
-2. Adds a bbox-bounded Mapbox satellite raster source
-3. Adds a turf inverse-mask fill layer (bbox minus park polygon) below `road-minor`, so roads/labels remain visible outside the park boundary
-4. `fitBounds` to the park, then starts a `requestAnimationFrame` orbit loop
-5. Stops on any user gesture (`dragstart`, `rotatestart`, `zoomstart`, `pitchstart`)
+### Selection + tour modes
+Two layered map states drive the park view, each owned by its own listener:
+
+**Selection** (mask + satellite overlay) — triggered on park click or search-result pick. `setSelectedFeature(props)` flips Redux; the selection listener in `registerListeners.ts` calls `engine.selectPark(siteId)`, which:
+1. Captures a `preSelectionCamera` snapshot (only on first selection — preserved across park-to-park transitions so the close action always reverts to the user's original view)
+2. Fetches the park's tile geometry via `querySourceFeatures` (with a `sourcedata`-driven retry if tiles haven't streamed in yet — relevant for search-from-far)
+3. Pre-fetches Mapbox satellite tiles covering the bbox at an adaptive zoom (highest z whose covering tile grid fits in ~4096×4096 px — small parks get crisp z14, continent-scale parks fall back to z10), stitches them into one canvas, **and clips the canvas to the park polygon at stitch time** using `Path2D` + `ctx.clip('evenodd')`. The result is a PNG with transparent edges shaped exactly like the park silhouette — no separate mask layer is needed. See `engine/satelliteTiles.ts`. Why this over `type: 'raster'` + bounds? Eliminates LOD-swap flicker, keeps the silhouette pixel-perfect across zooms, lets the basemap show through naturally outside the park (no flat fill covering hillshade/water), and the polygon-clip handles holes (`evenodd` rule) and MultiPolygon pieces in one path.
+4. Adds the result as a single Mapbox `image` source below `road-minor`, so road/admin/label vector layers still render on top of the satellite inside the park.
+5. `fitBounds` to the park (gentle, no pitch change)
+
+Race protection: the stitch is async, so an `AbortController` is wired through `stitchSatelliteTiles`. Any new selection / panel close / basemap swap aborts the in-flight fetch and revokes the blob URL on cleanup so the canvas isn't pinned in memory.
+
+`setSelectedFeature(null)` (close button or click on empty land) → `engine.deselectPark()` removes the overlay and `easeTo`s back to `preSelectionCamera`.
+
+**Tour** (orbit on top of selection) — triggered when the user clicks "Full detail" in the park panel. `setTourActive(true)` → `engine.startTour(siteId)`, which:
+1. Captures `preTourCamera` (bearing + pitch only)
+2. `fitBounds` again with `pitch: 60` for the dramatic angle
+3. Starts a `requestAnimationFrame` orbit loop on `moveend`
+4. Stops on any user gesture (`dragstart`, `rotatestart`, `zoomstart`, `pitchstart`) — orbit cancels and Redux is synced via `setTourActive(false)`
+
+Programmatic stops ("Show less", panel close) `easeTo` back to `preTourCamera`. User-gesture stops do not (the user is already driving the camera). Closing the panel while the tour is active first stops the tour without restoring (the deselect-camera restore supersedes it).
 
 ### Park detail panel (`src/features/panels/ParkDetailPanel.tsx`)
 On park selection, fetches Wikipedia hero image + summary via `src/shared/api/parkMedia.ts` (en.wikipedia.org REST summary API, in-memory cached). Mobile: bottom drawer (collapsed) → fullscreen transparent overlay with two glass cards and the live tour visible between them (expanded).

@@ -6,6 +6,8 @@ interface MapStyleState {
   fillOpacity: number
   selectedBasemap: string
   selectedUiTheme: string
+  uiMode: 'dark' | 'light'
+  basemapSync: boolean
 }
 
 const initialState: MapStyleState = {
@@ -13,6 +15,8 @@ const initialState: MapStyleState = {
   fillOpacity: 0.5,
   selectedBasemap: 'earth',
   selectedUiTheme: DEFAULT_UI_THEME_ID,
+  uiMode: 'dark',
+  basemapSync: true,
 }
 
 const mapStyleSlice = createSlice({
@@ -31,6 +35,13 @@ const mapStyleSlice = createSlice({
     setSelectedUiTheme(state, action: PayloadAction<string>) {
       state.selectedUiTheme = action.payload
     },
+    setUiMode(state, action: PayloadAction<'dark' | 'light'>) {
+      state.uiMode = action.payload
+    },
+    setBasemapSync(state, action: PayloadAction<boolean>) {
+      state.basemapSync = action.payload
+      if (action.payload) state.selectedBasemap = 'earth'
+    },
   },
 })
 
@@ -39,5 +50,7 @@ export const {
   setFillOpacity,
   setSelectedBasemap,
   setSelectedUiTheme,
+  setUiMode,
+  setBasemapSync,
 } = mapStyleSlice.actions
 export default mapStyleSlice.reducer

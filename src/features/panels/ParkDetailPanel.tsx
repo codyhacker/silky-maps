@@ -28,24 +28,16 @@ export function ParkDetailPanel() {
   const area      = feature?.REP_AREA != null ? formatArea(Number(feature.REP_AREA)) : null
   const since     = feature?.STATUS_YR ? formatProtectionYear(feature.STATUS_YR as string | number) : null
 
-  // Compact-view fragments derived from the same source data — keeps the chip
-  // strip terse (just the year, just the area) without losing the long-form
-  // text in expanded mode.
   const yearShort = (() => {
     const y = Number(feature?.STATUS_YR)
     return y && !isNaN(y) && y >= 1800 ? String(y) : null
   })()
 
-  // Wikipedia hero + summary. `null` = pending / no data; placeholder is shown
-  // either way so there's no flash of empty space.
   const [media, setMedia] = useState<ParkMedia | null>(null)
   const [imageFailed, setImageFailed] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
-  // Prefer the English Wikipedia title since we hit en.wikipedia.org.
-  const wikiQuery = feature
-    ? String(feature.NAME_ENG || feature.NAME || '').trim()
-    : ''
+  const wikiQuery  = feature ? String(feature.NAME_ENG || feature.NAME || '').trim() : ''
   const featureKey = feature?.SITE_PID != null ? String(feature.SITE_PID) : wikiQuery
 
   useEffect(() => {
@@ -58,9 +50,7 @@ export function ParkDetailPanel() {
     fetchParkMedia(wikiQuery).then((result) => {
       if (!cancelled) setMedia(result)
     })
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [featureKey, wikiQuery])
 
   const showImage = !!media?.imageUrl && !imageFailed
@@ -68,21 +58,20 @@ export function ParkDetailPanel() {
     !!iucnLabel || !!desig || !!iucnDesc || !!media?.summary || !!govLabel ||
     !!(area && area.comparison) || !!since
 
-  // On mobile, `expanded` swaps the layout from "bottom drawer" to "transparent
-  // overlay": the summary card sticks to the top, the expanded card sticks to
-  // the bottom, and the live tour orbits visibly through the gap between them.
-  // Tapping that gap also lets the user grab the camera (which stops the tour
-  // via MapEngine's user-interaction listener).
+  function handleToggle() {
+    const next = !expanded
+    setExpanded(next)
+    dispatch(setTourActive(next))
+  }
+
   const panelClass = `park-detail-panel${visible ? ' visible' : ''}${expanded ? ' expanded' : ''}`
 
   return (
     <div className={panelClass} role="region" aria-label="Park details">
-      {/* Summary card — always shown when the panel is visible. Wraps hero,
-          title, country, chips, and the Full detail / Show less toggle so
-          they can render as a single glass surface in the mobile-expanded
-          layout. */}
       <div className="park-detail-summary">
-        <div className="park-detail-hero">
+
+        {/* Hero image with name/country overlay */}
+        <div className="park-detail-hero relative">
           {showImage ? (
             <img
               src={media!.imageUrl!}
@@ -94,73 +83,87 @@ export function ParkDetailPanel() {
           ) : (
             <ParkPlaceholderImage />
           )}
-        </div>
 
-        {/* Header / meta block — title, country, and the compact stats strip
-            live together inside one .park-detail-block so the mobile-expanded
-            layout can render them as a single opaque card on a transparent
-            panel. On desktop and mobile-collapsed the wrapper has no styling
-            and the children flow exactly as before. */}
-        <div className="park-detail-block">
-          <div className="flex items-start justify-between gap-3 mb-1">
-            <h2 className="text-[17px] font-bold text-[var(--text-primary)] leading-snug flex-1 m-0">{name}</h2>
-            <button
-              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-0 cursor-pointer text-lg leading-none transition-all duration-150 bg-accent/15 text-[var(--text-muted)] hover:bg-accent/30 hover:text-[var(--text-primary)]"
-              onClick={() => dispatch(setSelectedFeature(null))}
-              aria-label="Close"
-            >
-              ×
-            </button>
+          {/* Name + country overlay — gradient fade from bottom */}
+          <div className="absolute inset-x-0 bottom-0 px-3 pt-8 pb-2.5 bg-gradient-to-t from-black/75 via-black/30 to-transparent pointer-events-none">
+            <h2 className="text-[16px] font-bold text-white leading-snug m-0 drop-shadow-sm">{name}</h2>
+            {country && (
+              <p className="text-[12px] text-white/80 m-0 mt-0.5">{country.flag} {country.name}</p>
+            )}
           </div>
 
-          {country && (
-            <p className="text-[13px] text-[var(--text-secondary)] m-0">
-              {country.flag} {country.name}
-            </p>
-          )}
-
-          {(area || yearShort || iucnLabel) && (
-            <div className="park-detail-chips flex flex-wrap gap-1.5 mt-3">
-              {area && (
-                <Chip icon="📐" label={area.display} />
-              )}
-              {yearShort && (
-                <Chip icon="🗓" label={yearShort} />
-              )}
-              {iucnLabel && (
-                <Chip icon="🏷" label={iucnLabel} />
-              )}
-            </div>
-          )}
+          {/* Close button — top right corner of hero */}
+          <button
+            className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center border-0 cursor-pointer text-lg leading-none transition-all duration-150 bg-black/40 backdrop-blur-sm text-white/80 hover:bg-black/65 hover:text-white"
+            onClick={() => dispatch(setSelectedFeature(null))}
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
 
-        {hasExpandableContent && (
-          <button
-            type="button"
-            className="park-detail-toggle"
-            onClick={() => {
-              const next = !expanded
-              setExpanded(next)
-              // Expanding starts the orbit tour + flips the park to outline-only;
-              // collapsing stops it. Selection changes also clear the tour
-              // automatically via the slice reducer.
-              dispatch(setTourActive(next))
-            }}
-            aria-expanded={expanded}
-          >
-            <span>{expanded ? 'Show less' : 'Full detail'}</span>
-            <svg
-              className={`park-detail-toggle-chevron${expanded ? ' open' : ''}`}
-              width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" strokeWidth="2.2"
-              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+        {/* Card body below hero */}
+        <div className="park-detail-block">
+
+          {/* Name fallback — shown only in expanded mode (hero is hidden) */}
+          {expanded && (
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-[16px] font-bold text-[var(--text-primary)] leading-snug m-0">{name}</h2>
+                {country && (
+                  <p className="text-[13px] text-[var(--text-secondary)] m-0 mt-0.5">{country.flag} {country.name}</p>
+                )}
+              </div>
+              <button
+                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 border-0 cursor-pointer text-lg leading-none transition-all duration-150 bg-accent/15 text-[var(--text-muted)] hover:bg-accent/30 hover:text-[var(--text-primary)]"
+                onClick={() => dispatch(setSelectedFeature(null))}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* 3-col stat tile grid — hidden in expanded (tour) mode */}
+          {!expanded && (area || yearShort || iucnLabel) && (
+            <div className="grid grid-cols-3 gap-1.5 mb-3">
+              <StatTile icon="📐" label="Area"      value={area?.display ?? '—'} />
+              <StatTile icon="🗓" label="Protected" value={yearShort ?? '—'} />
+              <StatTile icon="🏷" label="IUCN"      value={iucnLabel ?? '—'} />
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex gap-2">
+            {hasExpandableContent && (
+              <button
+                type="button"
+                className="flex-1 park-detail-toggle"
+                onClick={handleToggle}
+                aria-expanded={expanded}
+              >
+                <span>{expanded ? 'Show less' : 'Full details →'}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              className="w-9 h-9 flex items-center justify-center rounded-lg border border-accent/20 bg-accent/8 text-[var(--text-muted)] text-base cursor-pointer transition-all duration-150 hover:bg-accent/20 hover:text-[var(--text-secondary)] hover:border-accent/40 flex-shrink-0"
+              aria-label="Save to favourites"
             >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
-        )}
+              ♡
+            </button>
+            <button
+              type="button"
+              className="w-9 h-9 flex items-center justify-center rounded-lg border border-accent/20 bg-accent/8 text-[var(--text-muted)] text-base cursor-pointer transition-all duration-150 hover:bg-accent/20 hover:text-[var(--text-secondary)] hover:border-accent/40 flex-shrink-0"
+              aria-label="Share"
+            >
+              ⤴
+            </button>
+          </div>
+        </div>
       </div>
 
+      {/* Expanded detail section */}
       {expanded && (
         <div className="park-detail-expanded mt-3 pt-3 border-t border-accent/20">
           {(iucnLabel || desig) && (
@@ -229,11 +232,12 @@ export function ParkDetailPanel() {
   )
 }
 
-function Chip({ icon, label }: { icon: string; label: string }) {
+function StatTile({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-accent/12 border border-accent/20 text-[11px] text-[var(--text-secondary)] whitespace-nowrap">
-      <span aria-hidden="true" className="text-[12px] leading-none">{icon}</span>
-      <span className="text-[var(--text-primary)] font-medium">{label}</span>
-    </span>
+    <div className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg bg-accent/10 border border-accent/15">
+      <span className="text-[13px] leading-none" aria-hidden="true">{icon}</span>
+      <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-[0.3px]">{label}</span>
+      <span className="text-[11px] font-semibold text-[var(--text-primary)] text-center leading-tight">{value}</span>
+    </div>
   )
 }
