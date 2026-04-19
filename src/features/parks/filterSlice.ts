@@ -1,17 +1,17 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 
-interface MapFilterState {
+interface ParksFilterState {
   selectedCategory: string
   selectedDesignation: string
 }
 
-const initialState: MapFilterState = {
+const initialState: ParksFilterState = {
   selectedCategory: 'National',
   selectedDesignation: 'National Park',
 }
 
-const mapFilterSlice = createSlice({
-  name: 'mapFilter',
+const parksFilterSlice = createSlice({
+  name: 'parksFilter',
   initialState,
   reducers: {
     setCategory(state, action: PayloadAction<string>) {
@@ -27,5 +27,5 @@ const mapFilterSlice = createSlice({
   },
 })
 
-export const { setCategory, setCategoryAndResetDesignation, setDesignation } = mapFilterSlice.actions
-export default mapFilterSlice.reducer
+export const { setCategory, setCategoryAndResetDesignation, setDesignation } = parksFilterSlice.actions
+export default parksFilterSlice.reducer

@@ -1,20 +1,26 @@
 import { configureStore } from '@reduxjs/toolkit'
 import { listenerMiddleware } from './listenerMiddleware'
-import mapStyleReducer from '../features/parks/mapStyleSlice'
-import mapFilterReducer from '../features/parks/mapFilterSlice'
-import terrainReducer from '../features/parks/terrainSlice'
-import mapInteractionReducer from '../features/map-core/mapInteractionSlice'
-import commandedCameraReducer from '../features/map-core/commandedCameraSlice'
-import uiReducer from '../features/chrome/uiSlice'
+
+// ── map/ ────────────────────────────────────────────────────────────────────
+import mapStyleReducer    from '../features/map/styleSlice'
+import terrainReducer     from '../features/map/terrainSlice'
+import cameraReducer      from '../features/map/cameraSlice'
+
+// ── parks/ ──────────────────────────────────────────────────────────────────
+import parksFilterReducer      from '../features/parks/filterSlice'
+import parksInteractionReducer from '../features/parks/interactionSlice'
+
+// ── shell/ ──────────────────────────────────────────────────────────────────
+import uiReducer from '../features/shell/uiSlice'
 
 export const store = configureStore({
   reducer: {
-    mapStyle: mapStyleReducer,
-    mapFilter: mapFilterReducer,
-    terrain: terrainReducer,
-    mapInteraction: mapInteractionReducer,
-    commandedCamera: commandedCameraReducer,
-    ui: uiReducer,
+    mapStyle:         mapStyleReducer,
+    terrain:          terrainReducer,
+    camera:           cameraReducer,
+    parksFilter:      parksFilterReducer,
+    parksInteraction: parksInteractionReducer,
+    ui:               uiReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().prepend(listenerMiddleware.middleware),

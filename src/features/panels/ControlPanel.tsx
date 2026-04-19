@@ -1,18 +1,18 @@
 import { clsx } from 'clsx'
 import { useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../../app/hooks'
-import { toggleSection, setShowControls } from '../chrome/uiSlice'
-import { setSelectedTheme, setFillOpacity, setSelectedUiTheme, setSelectedBasemap } from './mapStyleSlice'
-import { setSelectedFeature } from '../map-core/mapInteractionSlice'
-import { fitBounds } from '../map-core/commandedCameraSlice'
-import { setCategoryAndResetDesignation, setDesignation } from './mapFilterSlice'
-import { setTerrainExaggeration } from './terrainSlice'
-import { THEME_LABELS } from '../../shared/constants/themes'
+import { toggleSection, setShowControls } from '../shell/uiSlice'
+import { setSelectedTheme, setFillOpacity, setSelectedUiTheme, setSelectedBasemap } from '../map/styleSlice'
+import { setTerrainExaggeration } from '../map/terrainSlice'
+import { fitBounds } from '../map/cameraSlice'
+import { useMapEngine } from '../map/engine/MapEngineContext'
+import { setSelectedFeature } from '../parks/interactionSlice'
+import { setCategoryAndResetDesignation, setDesignation } from '../parks/filterSlice'
+import { THEME_LABELS } from '../../shared/constants/dataPalettes'
 import { CATEGORY_OPTIONS, DESIGNATION_OPTIONS } from '../../shared/constants/filters'
 import { UI_THEMES } from '../../shared/constants/uiThemes'
 import { BASEMAP_OPTIONS } from '../../shared/constants/basemaps'
 import { getCountry } from '../../shared/constants/parkLabels'
-import { useMapEngine } from '../map-core/MapEngineContext'
 import { TitleGlobe } from '../../shared/components/TitleGlobe'
 import type { ParkSearchResult } from '../../shared/types'
 
@@ -41,8 +41,8 @@ export function ControlPanel() {
   const sectionsOpen     = useAppSelector(s => s.ui.sectionsOpen)
   const selectedTheme    = useAppSelector(s => s.mapStyle.selectedTheme)
   const fillOpacity      = useAppSelector(s => s.mapStyle.fillOpacity)
-  const selectedCategory = useAppSelector(s => s.mapFilter.selectedCategory)
-  const selectedDesig    = useAppSelector(s => s.mapFilter.selectedDesignation)
+  const selectedCategory = useAppSelector(s => s.parksFilter.selectedCategory)
+  const selectedDesig    = useAppSelector(s => s.parksFilter.selectedDesignation)
   const terrainExag      = useAppSelector(s => s.terrain.terrainExaggeration)
   const selectedUiTheme  = useAppSelector(s => s.mapStyle.selectedUiTheme)
   const selectedBasemap  = useAppSelector(s => s.mapStyle.selectedBasemap)

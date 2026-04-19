@@ -1,8 +1,8 @@
 import { createSelector } from '@reduxjs/toolkit'
 import type { LayerSpecification, SourceSpecification } from 'mapbox-gl'
-import type { RootState } from '../../app/store'
-import { buildThemeOptions, buildColorExpression, buildOutlineColorExpression } from '../../shared/constants/themes'
-import { getUiTheme } from '../../shared/constants/uiThemes'
+import type { RootState } from '../../../app/store'
+import { buildThemeOptions, buildColorExpression, buildOutlineColorExpression } from '../../../shared/constants/dataPalettes'
+import { getUiTheme } from '../../../shared/constants/uiThemes'
 
 const PMTILES_URL = import.meta.env.VITE_PMTILES_URL || 'http://localhost:8080/wdpa.pmtiles'
 const SOURCE_LAYER = 'geo'
@@ -19,8 +19,8 @@ export const selectAugmentationSpec = createSelector(
     (s: RootState) => s.mapStyle.selectedTheme,
     (s: RootState) => s.mapStyle.fillOpacity,
     (s: RootState) => s.mapStyle.selectedUiTheme,
-    (s: RootState) => s.mapFilter.selectedCategory,
-    (s: RootState) => s.mapFilter.selectedDesignation,
+    (s: RootState) => s.parksFilter.selectedCategory,
+    (s: RootState) => s.parksFilter.selectedDesignation,
     (s: RootState) => s.terrain.terrainExaggeration,
   ],
   (selectedTheme, fillOpacity, selectedUiTheme, selectedCategory, selectedDesignation, terrainExaggeration): AugmentationSpec => {

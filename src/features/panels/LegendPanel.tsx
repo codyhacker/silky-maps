@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { clsx } from 'clsx'
 import { useAppDispatch, useAppSelector } from '../../app/hooks'
-import { setShowLegend, toggleLegendCollapsed } from '../chrome/uiSlice'
-import { buildThemeOptions } from '../../shared/constants/themes'
+import { setShowLegend, toggleLegendCollapsed } from '../shell/uiSlice'
+import { buildThemeOptions } from '../../shared/constants/dataPalettes'
 import { getUiTheme } from '../../shared/constants/uiThemes'
 import { IUCN_LABELS, GOV_LABELS, getCountry } from '../../shared/constants/parkLabels'
 
@@ -12,7 +12,7 @@ export function LegendPanel() {
   const legendCollapsed = useAppSelector(s => s.ui.legendCollapsed)
   const selectedTheme   = useAppSelector(s => s.mapStyle.selectedTheme)
   const selectedUiTheme = useAppSelector(s => s.mapStyle.selectedUiTheme)
-  const hoveredFeature  = useAppSelector(s => s.mapInteraction.hoveredFeature)
+  const hoveredFeature  = useAppSelector(s => s.parksInteraction.hoveredFeature)
 
   // Themed swatches: the data palette is owned by the active UI theme so
   // changing the chrome also reskins the legend swatches and the parks layer
