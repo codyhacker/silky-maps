@@ -120,7 +120,7 @@ export function ParkDetailPanel() {
           )}
 
           {(area || yearShort || iucnLabel) && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
+            <div className="park-detail-chips flex flex-wrap gap-1.5 mt-3">
               {area && (
                 <Chip icon="📐" label={area.display} />
               )}
