@@ -3,7 +3,7 @@ import type { LayerSpecification, SourceSpecification } from 'mapbox-gl'
 import type { RootState } from '../../app/store'
 import { THEME_OPTIONS, buildColorExpression, buildOutlineColorExpression } from '../../shared/constants/themes'
 
-const TILE_SERVER_URL = import.meta.env.VITE_TILE_SERVER_URL || 'http://localhost:8080'
+const PMTILES_URL = import.meta.env.VITE_PMTILES_URL || 'http://localhost:8080/wdpa.pmtiles'
 const SOURCE_LAYER = 'geo'
 
 export interface AugmentationSpec {
@@ -44,7 +44,7 @@ export const selectAugmentationSpec = createSelector(
         } as SourceSpecification,
         'national-parks': {
           type: 'vector',
-          tiles: [`${TILE_SERVER_URL}/data/pmtiles/{z}/{x}/{y}.pbf`],
+          url: PMTILES_URL,
           promoteId: 'SITE_PID',
         } as SourceSpecification,
       },

@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_MAPBOX_ACCESS_TOKEN?: string
-  readonly VITE_TILE_SERVER_URL?: string
+  readonly VITE_PMTILES_URL?: string
 }
 
 interface ImportMeta {
