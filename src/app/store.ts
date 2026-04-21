@@ -1,5 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit'
 import { listenerMiddleware } from './listenerMiddleware'
+import { savePersisted } from './persist'
 
 // ── map/ ────────────────────────────────────────────────────────────────────
 import mapStyleReducer    from '../features/map/styleSlice'
@@ -39,3 +40,13 @@ export const store = configureStore({
 export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch
 export type AppStore = typeof store
+
+// Debounced write — coalesces rapid slider drags into one write per 400 ms.
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+store.subscribe(() => {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    const s = store.getState()
+    savePersisted({ mapStyle: s.mapStyle, terrain: s.terrain })
+  }, 400)
+})

@@ -71,9 +71,9 @@ export function registerMapListeners(engine: MapEngine): () => void {
     effect: (_action, api) => {
       const selected = api.getState().parksInteraction.selectedFeature
       if (selected?.SITE_PID != null) {
-        engine.selectPark(selected.SITE_PID)
+        engine.execute({ type: 'PARK_SELECT', siteId: selected.SITE_PID })
       } else {
-        engine.deselectPark()
+        engine.execute({ type: 'PARK_DESELECT' })
       }
     },
   }))
@@ -84,7 +84,7 @@ export function registerMapListeners(engine: MapEngine): () => void {
     actionCreator: setPendingParkId,
     effect: (action) => {
       if (action.payload !== null) {
-        engine.resolveAndSelectPark(action.payload)
+        engine.execute({ type: 'RESOLVE_PARK_BY_ID', id: action.payload })
       }
     },
   }))
@@ -99,9 +99,9 @@ export function registerMapListeners(engine: MapEngine): () => void {
       const state = api.getState()
       const selected = state.parksInteraction.selectedFeature
       if (state.parksInteraction.tourActive && selected?.SITE_PID != null) {
-        engine.startTour(selected.SITE_PID)
+        engine.execute({ type: 'PARK_TOUR_START', siteId: selected.SITE_PID })
       } else {
-        engine.stopTour()
+        engine.execute({ type: 'PARK_TOUR_STOP' })
       }
     },
   }))

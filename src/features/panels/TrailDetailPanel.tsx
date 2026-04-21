@@ -104,7 +104,9 @@ export function TrailDetailPanel() {
             elevations={profile?.elevations ?? null}
             stroke={palette.mapTrail}
             fill={palette.mapTrail}
-            casing={palette.mapTrailCasing}
+            bg={`rgb(${palette.bgDeepRgb})`}
+            gridStroke={`rgba(${palette.accentRgb}, 0.18)`}
+            axisLabel={palette.textSecondary}
             flyAlongProgress={flyAlongActive ? flyAlongProgress : undefined}
             flyAlongPaused={flyAlongPaused}
             onScrubStart={flyAlongActive ? handleScrubStart : undefined}
@@ -258,7 +260,13 @@ interface ElevationProfileProps {
   elevations: number[] | null
   stroke: string
   fill: string
-  casing: string
+  /** Panel-toned chart background (not trail-hued — the trail colour alone
+   * would make the whole chart monochrome). Pass as `rgb(...)` / `rgba(...)`. */
+  bg: string
+  /** Faint horizontal grid lines. Pass as `rgba(...)`. */
+  gridStroke: string
+  /** Axis/elevation-label text colour. */
+  axisLabel: string
   flyAlongProgress?: number
   flyAlongPaused?: boolean
   onScrubStart?: (t: number) => void
@@ -269,7 +277,9 @@ function ElevationProfile({
   elevations,
   stroke,
   fill,
-  casing,
+  bg,
+  gridStroke,
+  axisLabel,
   flyAlongProgress,
   flyAlongPaused,
   onScrubStart,
@@ -312,6 +322,8 @@ function ElevationProfile({
     if (!dragging) setHoverT(null)
   }
 
+  const gradientId = `elev-grad-${h}`
+
   // Placeholder when elevations aren't available yet.
   if (!elevations || elevations.length === 0 || elevations.every(e => e === 0)) {
     return (
@@ -319,7 +331,7 @@ function ElevationProfile({
         viewBox={`0 0 ${PROFILE_W} ${h}`}
         preserveAspectRatio="none"
         width="100%" height="100%"
-        style={{ display: 'block', background: casing }}
+        style={{ display: 'block', background: bg }}
       >
         <line
           x1={0} x2={PROFILE_W} y1={h * 0.7} y2={h * 0.7}
@@ -331,13 +343,20 @@ function ElevationProfile({
 
   const min   = Math.min(...elevations)
   const max   = Math.max(...elevations)
-  const range = Math.max(max - min, 1)
+  // 10% headroom on each side of the data range so the ridgeline isn't
+  // pressed against the top edge and the valleys don't kiss the baseline.
+  // `min 1m` floor keeps a perfectly flat trail from dividing by zero.
+  const dataRange = Math.max(max - min, 1)
+  const buffer    = dataRange * 0.1
+  const yMin      = min - buffer
+  const yMax      = max + buffer
+  const range     = yMax - yMin
   const plotH = h - PAD_TOP - PAD_BOTTOM
   const plotW = PROFILE_W - PAD_LEFT
 
   const points: [number, number][] = elevations.map((e, i) => [
     PAD_LEFT + (i / (elevations.length - 1)) * plotW,
-    PAD_TOP  + plotH - ((e - min) / range) * plotH,
+    PAD_TOP  + plotH - ((e - yMin) / range) * plotH,
   ])
 
   const linePath = catmullRomPath(points)
@@ -349,7 +368,7 @@ function ElevationProfile({
     const lo  = Math.floor(idx)
     const hi  = Math.min(Math.ceil(idx), elevations!.length - 1)
     const e   = elevations![lo] + (elevations![hi] - elevations![lo]) * (idx - lo)
-    return PAD_TOP + plotH - ((e - min) / range) * plotH
+    return PAD_TOP + plotH - ((e - yMin) / range) * plotH
   }
 
   const scrubX = flyAlongProgress !== undefined
@@ -360,27 +379,54 @@ function ElevationProfile({
     ? PAD_LEFT + hoverT * plotW
     : null
 
+  // Quarter-height gridlines — visual texture that breaks the
+  // single-hue silhouette-on-flat-panel look without fighting the data.
+  const gridY = [0.25, 0.5, 0.75].map(f => PAD_TOP + plotH * f)
+
   return (
     <svg
       ref={svgRef}
       viewBox={`0 0 ${PROFILE_W} ${h}`}
       preserveAspectRatio="none"
       width="100%" height="100%"
-      style={{ display: 'block', background: casing, cursor: interactive ? 'crosshair' : 'default' }}
+      style={{ display: 'block', background: bg, cursor: interactive ? 'crosshair' : 'default' }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}
     >
-      <path d={areaPath} fill={fill} fillOpacity={0.22} />
-      <path d={linePath} fill="none" stroke={stroke} strokeWidth={1.8}
-            strokeLinejoin="round" strokeLinecap="round" />
+      <defs>
+        {/* Vertical gradient on the area fill: bright at the ridgeline,
+            fading to near-transparent at the baseline. Gives the
+            silhouette depth and differentiates it from the flat-toned
+            background. */}
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stopColor={fill} stopOpacity="0.65" />
+          <stop offset="65%" stopColor={fill} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={fill} stopOpacity="0.05" />
+        </linearGradient>
+      </defs>
+
+      {/* Gridlines — drawn before data so the silhouette occludes them */}
+      {gridY.map((y, i) => (
+        <line
+          key={i}
+          x1={PAD_LEFT} x2={PROFILE_W} y1={y} y2={y}
+          stroke={gridStroke} strokeWidth={0.75} strokeDasharray="2 3"
+        />
+      ))}
+
+      <path d={areaPath} fill={`url(#${gradientId})`} />
+      <path d={linePath} fill="none" stroke={stroke} strokeWidth={2.4}
+            strokeLinejoin="round" strokeLinecap="round"
+            style={{ filter: 'drop-shadow(0 1px 1.5px rgba(0,0,0,0.45))' }} />
 
       {/* Elevation range — top-left, clear of the × close button */}
       <text
         x={PAD_LEFT + 2} y={PAD_TOP - 5}
-        textAnchor="start" fill="rgba(255,255,255,0.85)"
-        fontSize="9" fontFamily="'Geologica Variable', system-ui, sans-serif"
+        textAnchor="start" fill={axisLabel}
+        fontSize="10" fontFamily="'Geologica Variable', system-ui, sans-serif"
+        fontWeight="600" letterSpacing="0.4"
       >
         {Math.round(max)}m · {Math.round(min)}m
       </text>

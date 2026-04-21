@@ -154,10 +154,12 @@ const SAGE_FOREST: UiTheme = {
     mapLabelCity: '#a8c87a',
     mapLabelCountry: '#bcd898',
     mapLabelHalo: '#111b0e',
-    // Cool blue against the amber park ramp — clear hue separation so
-    // trails read as a distinct layer from park polygon fills.
-    mapTrail: '#60a5fa',
-    mapTrailCasing: '#0d1a0a',
+    // Rose/coral against the amber park ramp and sage basemap — blue
+    // was too close to the water colour, reading as a river rather than
+    // a trail. Casing is a deep rose-950 so the ribbon still reads as an
+    // outlined band. Thru stays violet for a separate hue register.
+    mapTrail: '#fb7185',
+    mapTrailCasing: '#4c0519',
     mapTrailThru: '#a78bfa',
     mapTrailHalo: '#0d1a0a',
     mapFog: {
@@ -242,9 +244,10 @@ const DARK_EARTH: UiTheme = {
     mapLabelCountry: '#dcc090',
     mapLabelHalo: '#1c1410',
     // Warm amber against the teal park ramp — clear hue separation so
-    // trails read as a distinct layer from park polygon fills.
+    // trails read as a distinct layer from park polygon fills. Deep
+    // bronze casing gives the amber line an outlined-ribbon contour.
     mapTrail: '#f59e0b',
-    mapTrailCasing: '#1a1109',
+    mapTrailCasing: '#3d1e04',
     mapTrailThru: '#fb923c',
     mapTrailHalo: '#1a1109',
     mapFog: {
@@ -329,9 +332,10 @@ const SLATE_MIST: UiTheme = {
     mapLabelCountry: '#a8ccd8',
     mapLabelHalo: '#0f1820',
     // Emerald against the orange park ramp — clear hue separation so
-    // trails read as a distinct layer from park polygon fills.
+    // trails read as a distinct layer from park polygon fills. Deep
+    // forest casing rims the line so it reads against the blue-grey bg.
     mapTrail: '#34d399',
-    mapTrailCasing: '#0d1620',
+    mapTrailCasing: '#052e20',
     mapTrailThru: '#22d3ee',
     mapTrailHalo: '#0d1620',
     mapFog: {
@@ -435,9 +439,10 @@ const BOTANICA: UiTheme = {
     mapLabelCountry: '#EDE1D2',  // Coconut
     mapLabelHalo: '#1a1008',
     // Orange against the lime park ramp — clear hue separation so
-    // trails read as a distinct layer from park polygon fills.
+    // trails read as a distinct layer from park polygon fills. Deep
+    // rust casing rims the orange line against the dark cocoa basemap.
     mapTrail: '#fb923c',
-    mapTrailCasing: '#180e06',
+    mapTrailCasing: '#3d1a08',
     mapTrailThru: '#fbbf24',
     mapTrailHalo: '#180e06',
     mapFog: {
@@ -522,9 +527,11 @@ const SAGE_LIGHT: UiPalette = {
   mapLabelCity: '#3a6437',
   mapLabelCountry: '#1c3a1c',
   mapLabelHalo: '#ddecd5',
-  // Deep blue against the amber park ramp on a pale sage basemap.
-  mapTrail: '#1d4ed8',
-  mapTrailCasing: '#e4ecdc',
+  // Deep rose against the amber park ramp on a pale sage basemap —
+  // blue was too close to the water colour. Thru stays indigo for a
+  // separate hue register so long-distance routes remain distinguishable.
+  mapTrail: '#be123c',
+  mapTrailCasing: '#4c0519',
   mapTrailThru: '#4338ca',
   mapTrailHalo: '#e4ecdc',
   mapFog: { color: '#c8dcc0', 'high-color': '#a0c090', 'space-color': '#4a7040', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
@@ -576,7 +583,7 @@ const EARTH_LIGHT: UiPalette = {
   mapLabelCountry: '#2a1808',
   mapLabelHalo: '#f0e2cc',
   mapTrail: '#b45309',
-  mapTrailCasing: '#f4e8d4',
+  mapTrailCasing: '#3b1400',
   mapTrailThru: '#92400e',
   mapTrailHalo: '#f4e8d4',
   mapFog: { color: '#d8c0a0', 'high-color': '#b89870', 'space-color': '#584020', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
@@ -628,7 +635,7 @@ const MIST_LIGHT: UiPalette = {
   mapLabelCountry: '#121c30',
   mapLabelHalo: '#d8e6f5',
   mapTrail: '#166534',
-  mapTrailCasing: '#e0eaf4',
+  mapTrailCasing: '#032012',
   mapTrailThru: '#0f766e',
   mapTrailHalo: '#e0eaf4',
   mapFog: { color: '#b0c8e0', 'high-color': '#90aac8', 'space-color': '#284860', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
@@ -680,7 +687,7 @@ const BOTANICA_LIGHT: UiPalette = {
   mapLabelCountry: '#231810',
   mapLabelHalo: '#f0e8dc',
   mapTrail: '#9a3412',
-  mapTrailCasing: '#f4ece0',
+  mapTrailCasing: '#2a0a02',
   mapTrailThru: '#7c2d12',
   mapTrailHalo: '#f4ece0',
   mapFog: { color: '#d8c8b0', 'high-color': '#c0a880', 'space-color': '#4a3828', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
@@ -761,7 +768,7 @@ export function buildCustomMapStyle(palette: UiPalette): StyleSpecification {
       },
     },
     sprite: 'mapbox://sprites/mapbox/dark-v11',
-    glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
+    glyphs: 'mapbox://fonts/codyhacker/{fontstack}/{range}.pbf',
     layers: [
       { id: 'background', type: 'background', paint: { 'background-color': p.mapBg } },
       { id: 'water', type: 'fill', source: 'mapbox-streets', 'source-layer': 'water', paint: { 'fill-color': p.mapWater } },
@@ -790,13 +797,13 @@ export function buildCustomMapStyle(palette: UiPalette): StyleSpecification {
       {
         id: 'place-labels', type: 'symbol', source: 'mapbox-streets', 'source-layer': 'place_label',
         filter: ['in', 'class', 'city', 'town'],
-        layout: { 'text-field': ['get', 'name'], 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 4, 10, 10, 16] },
+        layout: { 'text-field': ['get', 'name'], 'text-font': ['Geologica Regular', 'Arial Unicode MS Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 4, 10, 10, 16] },
         paint: { 'text-color': p.mapLabelCity, 'text-halo-color': p.mapLabelHalo, 'text-halo-width': 1.5 },
       },
       {
         id: 'country-labels', type: 'symbol', source: 'mapbox-streets', 'source-layer': 'place_label',
         filter: ['==', 'class', 'country'],
-        layout: { 'text-field': ['get', 'name'], 'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 2, 10, 6, 18] },
+        layout: { 'text-field': ['get', 'name'], 'text-font': ['Geologica Bold', 'Arial Unicode MS Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 2, 10, 6, 18] },
         paint: { 'text-color': p.mapLabelCountry, 'text-halo-color': p.mapLabelHalo, 'text-halo-width': 2 },
       },
     ],

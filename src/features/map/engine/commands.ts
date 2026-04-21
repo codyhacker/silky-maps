@@ -12,6 +12,13 @@ export type MapCommand =
   | { type: 'FIT_BOUNDS'; bounds: LngLatBoundsLike; options?: FitBoundsOptions }
   | { type: 'EASE_TO';    options: EasingOptions }
 
+  // ── Parks ─────────────────────────────────────────────────────────────────
+  | { type: 'PARK_SELECT';        siteId: string | number }
+  | { type: 'PARK_DESELECT' }
+  | { type: 'PARK_TOUR_START';    siteId: string | number }
+  | { type: 'PARK_TOUR_STOP';     restoreCamera?: boolean }
+  | { type: 'RESOLVE_PARK_BY_ID'; id: string }
+
   // ── Trails ────────────────────────────────────────────────────────────────
   | { type: 'TRAIL_HOVER';     trailId: string | number | null }
   | { type: 'TRAIL_SELECT';    trailId: string | number | null }

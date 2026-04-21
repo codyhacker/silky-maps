@@ -1,4 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
+import { loadPersisted } from '../../app/persist'
 
 interface TerrainState {
   terrainExaggeration: number
@@ -6,6 +7,7 @@ interface TerrainState {
 
 const initialState: TerrainState = {
   terrainExaggeration: 1.5,
+  ...loadPersisted<TerrainState>('terrain'),
 }
 
 const terrainSlice = createSlice({
