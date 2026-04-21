@@ -24,6 +24,13 @@ export function LegendPanel() {
   const selectedTheme   = useAppSelector(s => s.mapStyle.selectedTheme)
   const selectedUiTheme = useAppSelector(s => s.mapStyle.selectedUiTheme)
   const hoveredFeature  = useAppSelector(s => s.parksInteraction.hoveredFeature)
+  const trailsVisible   = useAppSelector(s => s.trailsFilter.visible)
+  // Whether the deployment has any trails data hosted at all. If neither
+  // env var is set the trail layers never render even when toggled on, so
+  // the OSM credit is misleading.
+  const trailsAvailable =
+    !!import.meta.env.VITE_TRAILS_PMTILES_URL ||
+    !!import.meta.env.VITE_THRUHIKES_PMTILES_URL
 
   // Themed swatches: the data palette is owned by the active UI theme so
   // changing the chrome also reskins the legend swatches and the parks layer
@@ -128,6 +135,23 @@ export function LegendPanel() {
           )
         })}
       </div>
+
+      {/* OSM attribution — required by the ODbL when OSM-derived data is shown.
+          Only renders when trail layers are actually visible on the map; the
+          parks data (WDPA) doesn't require OSM credit. */}
+      {trailsVisible && trailsAvailable && (
+        <p className="m-0 mt-2 pt-2 border-t border-accent/15 text-[9px] text-[var(--text-muted)] tracking-[0.2px]">
+          Trails ©{' '}
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] underline-offset-2 hover:underline"
+          >
+            OpenStreetMap contributors
+          </a>
+        </p>
+      )}
 
       {engine && (
         <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-accent/15">

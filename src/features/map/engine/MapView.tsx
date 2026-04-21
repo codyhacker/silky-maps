@@ -18,10 +18,11 @@ export function MapView({ children }: MapViewProps) {
     if (!containerRef.current) return
 
     const eng = new MapEngine(containerRef.current, store)
-    registerMapListeners(eng)
+    const unregister = registerMapListeners(eng)
     setEngine(eng)
 
     return () => {
+      unregister()
       eng.destroy()
       setEngine(null)
     }

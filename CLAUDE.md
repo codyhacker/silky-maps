@@ -19,9 +19,13 @@ Create `.env` in the project root:
 ```
 VITE_MAPBOX_ACCESS_TOKEN=...
 VITE_PMTILES_URL=http://localhost:8080/wdpa.pmtiles
+VITE_TRAILS_PMTILES_URL=http://localhost:8080/trails.pmtiles      # optional
+VITE_THRUHIKES_PMTILES_URL=http://localhost:8080/thruhikes.pmtiles # optional
 ```
 
 `VITE_PMTILES_URL` points directly to a `.pmtiles` file. The source layer inside the tiles is named `geo`. Features are promoted by `SITE_PID`.
+
+`VITE_TRAILS_PMTILES_URL` / `VITE_THRUHIKES_PMTILES_URL` are optional. When unset the trail layers simply don't render — the rest of the app works untouched. Build them via `scripts/build-trails-pmtiles.sh` (osmium → spatial-join with WDPA → tippecanoe). Source-layer names inside those tiles are `trails` and `thruhikes` respectively.
 
 ## Architecture
 
@@ -41,7 +45,8 @@ src/
       engine/     MapEngine.ts, MapView.tsx, MapEngineContext.ts,
                   registerListeners.ts, styleAugmentation.ts, commands.ts
     parks/        filterSlice.ts, interactionSlice.ts
-    panels/       ControlPanel.tsx, LegendPanel.tsx, ParkDetailPanel.tsx
+    trails/       filterSlice.ts, interactionSlice.ts
+    panels/       ControlPanel.tsx, LegendPanel.tsx, ParkDetailPanel.tsx, TrailDetailPanel.tsx
     shell/        MobileToggles.tsx, uiSlice.ts
   shared/
     api/          parkMedia.ts
@@ -81,6 +86,19 @@ Programmatic stops ("Show less", panel close) `easeTo` back to `preTourCamera`. 
 ### Park detail panel (`src/features/panels/ParkDetailPanel.tsx`)
 On park selection, fetches Wikipedia hero image + summary via `src/shared/api/parkMedia.ts` (en.wikipedia.org REST summary API, in-memory cached). Mobile: bottom drawer (collapsed) → fullscreen transparent overlay with two glass cards and the live tour visible between them (expanded).
 
+### Hiking trails
+A separate vector source pair (`trails`, `thruhikes`) sourced from OSM. Five layers (`trails-casing`, `trails-primary`, `trails-dashed`, `trails-thru`, `trails-labels`) are added to `selectAugmentationSpec` whenever `trailsFilter.visible` is true. The `dashed` variant is gated on `surface ∈ {gravel, unpaved}`; everything else is filter expressions over the trail properties (`length_km`, `surface`, `difficulty`).
+
+**Click routing**: trails take priority over parks in `MapEngine.registerMapEvents` because the line hit-target is much narrower than a park polygon. A trail click does NOT clear the park selection — both panels can show simultaneously (trail-inside-park is the canonical case), and the trail panel slides to the LEFT of the park panel via a `:has(.park-detail-panel.visible)` rule in `index.css`. A park click DOES clear the trail.
+
+**Trail selection** (`engine.selectTrail` / `deselectTrail`) is much lighter than park selection — no satellite stitch, no mask. It just sets feature-state on the trail to drive the highlight/casing in the augmentation spec, then `fitBounds` to the assembled line.
+
+**Fly-along tour** (`engine.startFlyAlong`) — the trail equivalent of the orbit tour. Triggered by the "Fly along →" button in `TrailDetailPanel`. Coalesces tile-sliced LineStrings via `assembleTrailLine`, then a `requestAnimationFrame` loop walks `@turf/along` at a fixed wall-clock duration, with `computeBearingDeg` orienting the camera tangent to the path. Same user-gesture cancellation contract as `startTour`.
+
+**Trail detail panel** (`src/features/panels/TrailDetailPanel.tsx`) renders an SVG elevation profile sampled from the live terrain DEM via `engine.getSelectedTrailProfile()`, plus stat tiles (length / elevation gain / surface / difficulty) and the fly-along button. There is intentionally no Wikipedia lookup — most trails aren't notable enough to have an article and the elevation plot is the more honest "what is this trail" signal.
+
+**Adding/changing trail data**: re-run `scripts/build-trails-pmtiles.sh <pbf>` and re-host the resulting `.pmtiles`. The spatial-join script (`_spatial_join_trails.py`) tags each trail with the `SITE_PID` of any containing WDPA park (the `inside_park` property the panel surfaces).
+
 ### UI theming system
 All UI colors are CSS custom properties set on `:root`. The canonical definition is in `src/shared/constants/uiThemes.ts`, which contains:
 - `UiPalette` interface — every color token used in CSS
@@ -105,6 +123,8 @@ Add a `UiTheme` object to `UI_THEMES` in `uiThemes.ts`. No other files need chan
 | `camera` | `features/map/cameraSlice.ts` | commanded flyTo/fitBounds payloads; observed camera position |
 | `parksFilter` | `features/parks/filterSlice.ts` | category + designation filter values |
 | `parksInteraction` | `features/parks/interactionSlice.ts` | hovered feature, selected feature, tourActive flag |
+| `trailsFilter` | `features/trails/filterSlice.ts` | trails visible toggle, max length, surface chips, difficulty, thru-only |
+| `trailsInteraction` | `features/trails/interactionSlice.ts` | hovered/selected trail id + cached props, flyAlongActive flag |
 | `ui` | `features/shell/uiSlice.ts` | panel open/closed states, section collapse state |
 
 ### WDPA feature properties

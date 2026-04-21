@@ -7,12 +7,15 @@ import mapboxgl from 'mapbox-gl'
 // https://github.com/mapbox/mapbox-gl-js/issues/12656.
 import MapboxWorker from 'mapbox-gl/dist/mapbox-gl-csp-worker?worker'
 import { diff } from '@mapbox/mapbox-gl-style-spec'
+import along from '@turf/along'
+import length from '@turf/length'
 
 ;(mapboxgl as unknown as { workerClass: typeof Worker }).workerClass = MapboxWorker as unknown as typeof Worker
 import type { AppStore } from '../../../app/store'
-import { setHoveredFeature, setSelectedFeature, setTourActive } from '../../parks/interactionSlice'
+import { setHoveredFeature, setSelectedFeature, setTourActive, setPendingParkId } from '../../parks/interactionSlice'
+import { setHoveredTrail, setSelectedTrail, setFlyAlongActive, setFlyAlongProgress, setFlyAlongPaused } from '../../trails/interactionSlice'
 import { cameraObserved } from '../cameraSlice'
-import type { HoveredFeatureProperties, ParkSearchResult } from '../../../shared/types'
+import type { HoveredFeatureProperties, ParkSearchResult, TrailProperties } from '../../../shared/types'
 import { BASEMAP_OPTIONS } from '../../../shared/constants/basemaps'
 import { getUiTheme, getEffectivePalette, applyUiTheme, applyMapFog, buildCustomMapStyle, getCustomLayerPaints } from '../../../shared/constants/uiThemes'
 import type { MapCommand } from './commands'
@@ -20,7 +23,12 @@ import { selectAugmentationSpec, type AugmentationSpec } from './styleAugmentati
 import { stitchSatelliteTiles } from './satelliteTiles'
 
 const SOURCE_LAYER = 'geo'
+const TRAILS_SOURCE_LAYER = 'trails'
 const CUSTOM_BASEMAP_ID = 'earth'
+
+// Trail layers we route clicks through (in priority order — primary
+// before casing so the wider hit-target doesn't shadow the actual line).
+const TRAIL_INTERACTIVE_LAYERS = ['trails-primary', 'trails-thru']
 
 // Selection overlay — Mapbox satellite tiles, polygon-clipped at canvas
 // stitch time so the resulting image already has transparent edges that
@@ -74,6 +82,19 @@ function getBoundsFromGeometry(
   return [[minLng, minLat], [maxLng, maxLat]]
 }
 
+// Forward bearing in degrees (0=N, 90=E) from a→b on a sphere.
+// Used by the fly-along loop to keep the camera pointed at the next sample.
+function computeBearingDeg(a: [number, number], b: [number, number]): number {
+  const toRad = (d: number): number => (d * Math.PI) / 180
+  const toDeg = (r: number): number => (r * 180) / Math.PI
+  const lat1 = toRad(a[1])
+  const lat2 = toRad(b[1])
+  const dLon = toRad(b[0] - a[0])
+  const y = Math.sin(dLon) * Math.cos(lat2)
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon)
+  return (toDeg(Math.atan2(y, x)) + 360) % 360
+}
+
 // ─── MapEngine ────────────────────────────────────────────────────────────────
 
 export class MapEngine {
@@ -111,6 +132,12 @@ export class MapEngine {
   // canvas in browser memory.
   private satelliteBlobUrl: string | null = null
 
+  // ── Pending park id (deep-link restoration) ─────────────────────────────
+  // Retry handler registered on `sourcedata` while waiting for national-parks
+  // tiles to stream in so we can resolve a SITE_PID from the URL into a full
+  // feature properties object.
+  private pendingParkRetry: ((e: { sourceId?: string }) => void) | null = null
+
   // ── Tour state (Full detail → orbit on top of selection) ────────────────
   private tourSiteId: string | number | null = null
   private tourRaf: number | null = null
@@ -119,6 +146,34 @@ export class MapEngine {
   // Bearing/pitch captured when the orbit starts so we can restore the camera
   // when the tour ends programmatically (Show less / panel close).
   private preTourCamera: { bearing: number; pitch: number } | null = null
+
+  // ── Trail interaction state ─────────────────────────────────────────────
+  private hoveredTrailId: string | number | null = null
+  private selectedTrailId: string | number | null = null
+  // Source layer the selected trail was matched against — set on select so
+  // we can clear feature-state on the right source/layer at deselect time
+  // (a trail can come from either the local 'trails' layer or the
+  // global 'thruhikes' layer).
+  private selectedTrailSource: 'trails' | 'thruhikes' | null = null
+  // Camera snapshot captured at fly-along start so a programmatic stop
+  // (Stop button / panel close) can restore. User-gesture stops do not.
+  private preFlyAlongCamera: CameraSnapshot | null = null
+  // RAF + timing for the fly-along loop. `flyAlongLine` is the full
+  // assembled polyline (multiple tile slices coalesced); `flyAlongLengthKm`
+  // is precomputed so each tick is a cheap turf.along call.
+  private flyAlongTrailId: string | number | null = null
+  private flyAlongRaf: number | null = null
+  private flyAlongDurationMs = 0
+  private flyAlongLine: GeoJSON.Feature<GeoJSON.LineString> | null = null
+  private flyAlongLengthKm = 0
+  // t-based progress (0–1) advanced by real dt each frame so pause/seek are
+  // trivial: pausing stops advancing t, seeking sets t directly.
+  private flyAlongT = 0
+  private flyAlongLastTs: number | null = null
+  // Exponentially-smoothed bearing to avoid the camera snapping at each turn.
+  private flyAlongSmoothedBearing = 0
+  // DOM marker (person dot) placed on the trail and updated each frame.
+  private flyAlongMarker: mapboxgl.Marker | null = null
 
   constructor(container: HTMLDivElement, store: AppStore) {
     this.store = store
@@ -129,9 +184,12 @@ export class MapEngine {
     const initialBasemap = BASEMAP_OPTIONS.find(b => b.id === state.mapStyle.selectedBasemap) ?? BASEMAP_OPTIONS[0]
     this.currentBasemapId = initialBasemap.id
 
+    const initialPalette = getEffectivePalette(getUiTheme(state.mapStyle.selectedUiTheme), state.mapStyle.uiMode)
     const initialStyle = initialBasemap.style === null
-      ? buildCustomMapStyle(getUiTheme(state.mapStyle.selectedUiTheme).palette)
+      ? buildCustomMapStyle(initialPalette)
       : initialBasemap.style
+
+    applyUiTheme(initialPalette)
 
     this.map = new mapboxgl.Map({
       container,
@@ -161,10 +219,410 @@ export class MapEngine {
     return this.map
   }
 
+  // Run `cb` once the WDPA (`national-parks`) vector source is present in
+  // the style and finished its initial load. Used by URL deep-link
+  // rehydration so we don't fire `resolveAndSelectPark` before the source
+  // even exists — `querySourceFeatures` on a missing source is a no-op,
+  // and we'd rather just register the retry once.
+  //
+  // Fires the callback at most once. Registering the listener pre-emptively
+  // is safe because `sourcedata` events fire for the source-add itself, so
+  // we won't miss the transition from "not in style" → "loaded".
+  whenWdpaReady(cb: () => void): void {
+    if (this.map.getSource('national-parks') && this.map.isSourceLoaded('national-parks')) {
+      cb()
+      return
+    }
+    const handler = (e: { sourceId?: string }): void => {
+      if (e.sourceId !== 'national-parks') return
+      if (!this.map.isSourceLoaded('national-parks')) return
+      this.map.off('sourcedata', handler)
+      cb()
+    }
+    this.map.on('sourcedata', handler)
+  }
+
   destroy(): void {
     this.stopTour({ restoreCamera: false })
+    this.stopFlyAlong({ restoreCamera: false })
     this.clearSelectionOverlay()
     this.map.remove()
+  }
+
+  // ─── Trails: hover + select ─────────────────────────────────────────────
+
+  setTrailHover(id: string | number | null): void {
+    if (this.hoveredTrailId === id) return
+    if (this.hoveredTrailId !== null) {
+      this.setTrailFeatureStateBoth(this.hoveredTrailId, { hover: false })
+    }
+    this.hoveredTrailId = id
+    if (id !== null) {
+      this.setTrailFeatureStateBoth(id, { hover: true })
+    }
+  }
+
+  selectTrail(id: string | number): void {
+    if (this.selectedTrailId === id) return
+    if (this.selectedTrailId !== null) this.deselectTrail()
+    this.selectedTrailId = id
+
+    // Try the local trails layer first, then thruhikes — promoteId is
+    // 'osm_id' on both so the same id resolves either way. The source we
+    // *find* the feature in dictates which feature-state we paint.
+    const trailsHit = this.map.getSource('trails')
+      ? this.map.querySourceFeatures('trails', {
+          sourceLayer: TRAILS_SOURCE_LAYER,
+          filter: ['==', ['get', 'osm_id'], id],
+        })
+      : []
+    const thruHit = trailsHit.length === 0 && this.map.getSource('thruhikes')
+      ? this.map.querySourceFeatures('thruhikes', {
+          sourceLayer: 'thruhikes',
+          filter: ['==', ['get', 'osm_id'], id],
+        })
+      : []
+    const hits = trailsHit.length > 0 ? trailsHit : thruHit
+    this.selectedTrailSource = trailsHit.length > 0 ? 'trails' : (thruHit.length > 0 ? 'thruhikes' : null)
+
+    if (this.selectedTrailSource) {
+      this.map.setFeatureState(
+        {
+          source: this.selectedTrailSource,
+          sourceLayer: this.selectedTrailSource === 'trails' ? TRAILS_SOURCE_LAYER : 'thruhikes',
+          id,
+        },
+        { selected: true },
+      )
+    }
+
+    // Frame the trail so the panel that's about to open isn't pointing at
+    // empty ocean. Modest pitch — fly-along is the dramatic camera ride.
+    const bounds = this.computeBoundsFromFeatures(hits)
+    if (bounds) {
+      this.map.fitBounds(bounds, {
+        padding: { top: 80, bottom: 80, left: 80, right: 380 },
+        maxZoom: 14,
+        duration: 900,
+      })
+    }
+  }
+
+  deselectTrail(): void {
+    this.stopFlyAlong({ restoreCamera: false })
+    if (this.selectedTrailId !== null && this.selectedTrailSource) {
+      this.map.setFeatureState(
+        {
+          source: this.selectedTrailSource,
+          sourceLayer: this.selectedTrailSource === 'trails' ? TRAILS_SOURCE_LAYER : 'thruhikes',
+          id: this.selectedTrailId,
+        },
+        { selected: false },
+      )
+    }
+    this.selectedTrailId = null
+    this.selectedTrailSource = null
+  }
+
+  // Hover state lives on whichever of (trails, thruhikes) holds the feature.
+  // Cheap to set on both and let the no-op happen than to query first.
+  private setTrailFeatureStateBoth(id: string | number, state: Record<string, unknown>): void {
+    if (this.map.getSource('trails')) {
+      this.map.setFeatureState(
+        { source: 'trails', sourceLayer: TRAILS_SOURCE_LAYER, id },
+        state,
+      )
+    }
+    if (this.map.getSource('thruhikes')) {
+      this.map.setFeatureState(
+        { source: 'thruhikes', sourceLayer: 'thruhikes', id },
+        state,
+      )
+    }
+  }
+
+  private computeBoundsFromFeatures(
+    features: mapboxgl.MapboxGeoJSONFeature[],
+  ): [[number, number], [number, number]] | null {
+    let bounds: [[number, number], [number, number]] | null = null
+    for (const f of features) {
+      const b = getBoundsFromGeometry(f.geometry as GeoJSON.Geometry)
+      if (!b) continue
+      if (!bounds) bounds = b
+      else {
+        bounds = [
+          [Math.min(bounds[0][0], b[0][0]), Math.min(bounds[0][1], b[0][1])],
+          [Math.max(bounds[1][0], b[1][0]), Math.max(bounds[1][1], b[1][1])],
+        ]
+      }
+    }
+    return bounds
+  }
+
+  // ─── Fly-along: camera ride down a trail polyline ──────────────────────
+
+  // Mirrors `startTour`: assemble the trail polyline from one or more tile
+  // slices, then RAF-step the camera along it via `turf.along`. Each
+  // frame jumps to the sampled point, sets bearing to face the next
+  // sample, and holds a fixed pitch — the visual is a pilot's-eye flight
+  // along the trail.
+  startFlyAlong(id: string | number): void {
+    if (this.selectedTrailId !== id) return  // selection guard
+    if (this.flyAlongTrailId === id) return  // already running
+
+    this.stopFlyAlong({ restoreCamera: false })  // re-entrant safety
+
+    const line = this.assembleTrailLine(id)
+    if (!line || line.geometry.coordinates.length < 2) return
+
+    this.flyAlongTrailId = id
+    this.flyAlongLine = line
+    this.flyAlongLengthKm = length(line, { units: 'kilometers' })
+    this.flyAlongDurationMs = 30_000
+    this.flyAlongT = 0
+    this.flyAlongLastTs = null
+    this.flyAlongSmoothedBearing = this.map.getBearing()
+
+    // Hiker marker — SVG icon using the active trail color.
+    const mapState = this.store.getState().mapStyle
+    const palette = getEffectivePalette(getUiTheme(mapState.selectedUiTheme), mapState.uiMode)
+    const markerEl = document.createElement('div')
+    markerEl.className = 'fly-along-hiker'
+    markerEl.style.color = palette.mapTrail
+    markerEl.innerHTML = `<svg viewBox="0 0 128 128" width="22" height="22" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M63.5,20c5.5,0,10-4.5,10-10c0-5.5-4.5-10-10-10c-5.5,0-10,4.5-10,10C53.5,15.5,58,20,63.5,20z"/>
+      <path d="M39.7,50.5l7-28.9c0.4-1.5-0.6-3.1-2.1-3.5l-8.3-2c-1.6-0.4-3.1,0.6-3.5,2.1l-7,28.9c-0.4,1.5,0.6,3.1,2.1,3.5l8.3,2C37.7,53,39.3,52.1,39.7,50.5z"/>
+      <path d="M104,31.6c-1.1,0-2,0.9-2.3,2L85,124.5c0,0.1,0,0.1,0,0.2c0,1.3,1,2.3,2.3,2.3c1.2,0,2.1-0.9,2.3-2l16.7-90.8v-0.2C106.3,32.7,105.3,31.6,104,31.6z"/>
+      <path d="M64.4,52.5l1.3-5.8l1,4.6c0.9,3,3.7,3.3,3.7,3.3l16.2,4.1c0.3,0.1,0.6,0.1,1,0.1c2.7,0,4.8-2.1,4.8-4.8c0-2.3-1.6-4.2-3.7-4.7l-14.1-3.5L70.8,30c-1.8-8.8-10.2-8.6-10.2-8.6c-8.1-0.2-10.2,8.3-10.2,8.3l-21.1,88.7c-0.1,0.5-0.1,0.9-0.1,1.4c0,3.9,3.1,7,7,7c3.2,0,5.9-2.1,6.7-5L55,72l11.5,49.6c0.7,3.1,3.5,5.3,6.8,5.3c3.9,0,7-3.1,7-7c0-0.5-0.1-1-0.2-1.5L64.4,52.5z"/>
+    </svg>`
+    this.flyAlongMarker = new mapboxgl.Marker({ element: markerEl, anchor: 'bottom' })
+      .setLngLat(line.geometry.coordinates[0] as [number, number])
+      .addTo(this.map)
+
+    this.store.dispatch(setFlyAlongProgress(0))
+
+    // Snapshot the camera so a programmatic stop can restore it.
+    const c = this.map.getCenter()
+    this.preFlyAlongCamera = {
+      center: [c.lng, c.lat],
+      zoom: this.map.getZoom(),
+      bearing: this.map.getBearing(),
+      pitch: this.map.getPitch(),
+    }
+
+    // Frame the trail at fly-along pitch, then start the RAF loop after
+    // the camera lands. `once('moveend')` is keyed against the launch id
+    // so a fast user re-selection doesn't hijack a stale frame.
+    const bounds = getBoundsFromGeometry(line.geometry)
+    if (bounds) {
+      this.map.fitBounds(bounds, {
+        padding: 100,
+        pitch: 65,
+        duration: 1400,
+        maxZoom: 14,
+      })
+    }
+
+    const launchId = id
+    this.map.once('moveend', () => {
+      if (this.flyAlongTrailId !== launchId) return
+      this.runFlyAlongLoop()
+    })
+
+    // User gesture cancels — same handler shape as the park orbit tour.
+    this.map.on('dragstart', this.onFlyAlongInteraction)
+    this.map.on('rotatestart', this.onFlyAlongInteraction)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.map.on('zoomstart', this.onFlyAlongInteraction as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.map.on('pitchstart', this.onFlyAlongInteraction as any)
+  }
+
+  stopFlyAlong(opts: { restoreCamera?: boolean } = {}): void {
+    if (this.flyAlongRaf !== null) {
+      cancelAnimationFrame(this.flyAlongRaf)
+      this.flyAlongRaf = null
+    }
+    this.map.off('dragstart', this.onFlyAlongInteraction)
+    this.map.off('rotatestart', this.onFlyAlongInteraction)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.map.off('zoomstart', this.onFlyAlongInteraction as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.map.off('pitchstart', this.onFlyAlongInteraction as any)
+
+    if (this.flyAlongTrailId !== null) {
+      this.flyAlongTrailId = null
+      this.flyAlongLine = null
+      this.flyAlongLengthKm = 0
+      this.flyAlongMarker?.remove()
+      this.flyAlongMarker = null
+      this.store.dispatch(setFlyAlongPaused(false))
+
+      const restore = opts.restoreCamera ?? true
+      if (restore && this.preFlyAlongCamera) {
+        const snap = this.preFlyAlongCamera
+        this.map.easeTo({
+          center: snap.center,
+          zoom: snap.zoom,
+          bearing: snap.bearing,
+          pitch: snap.pitch,
+          duration: 1100,
+        })
+      }
+      this.preFlyAlongCamera = null
+    }
+  }
+
+  // Class-property handler — needed so the same reference can be passed
+  // to .on() and .off(). Bails out silently for programmatic moves
+  // (originalEvent is undefined for fitBounds / setBearing, so only real
+  // user gestures cancel the ride).
+  private onFlyAlongInteraction = (e: { originalEvent?: Event }): void => {
+    if (!e.originalEvent) return
+    this.stopFlyAlong({ restoreCamera: false })
+    this.store.dispatch(setFlyAlongActive(false))
+  }
+
+  private runFlyAlongLoop(): void {
+    const tick = (now: number): void => {
+      if (this.flyAlongTrailId === null || !this.flyAlongLine) return
+
+      const trailState = this.store.getState().trailsInteraction
+
+      if (trailState.flyAlongPaused) {
+        // User is scrubbing the chart — move marker to chart position but
+        // hold the camera where it is. Reset the clock so resuming is seamless.
+        this.flyAlongT = trailState.flyAlongProgress
+        this.flyAlongLastTs = null
+        const distKm = this.flyAlongT * this.flyAlongLengthKm
+        const pt = along(this.flyAlongLine, distKm, { units: 'kilometers' })
+        this.flyAlongMarker?.setLngLat(pt.geometry.coordinates as [number, number])
+        this.flyAlongRaf = requestAnimationFrame(tick)
+        return
+      }
+
+      // Advance t by real elapsed time so the duration stays wall-clock
+      // accurate regardless of frame rate or how long a pause lasted.
+      if (this.flyAlongLastTs !== null) {
+        const dt = now - this.flyAlongLastTs
+        this.flyAlongT = Math.min(this.flyAlongT + dt / this.flyAlongDurationMs, 1)
+      }
+      this.flyAlongLastTs = now
+
+      const distKm = this.flyAlongT * this.flyAlongLengthKm
+      // 150 m lookahead — samples direction over a longer chord so micro-wiggles
+      // in the polyline don't snap the bearing every frame.
+      const lookAheadKm = Math.min(distKm + 0.15, this.flyAlongLengthKm)
+      const pt    = along(this.flyAlongLine, distKm,      { units: 'kilometers' })
+      const ahead = along(this.flyAlongLine, lookAheadKm, { units: 'kilometers' })
+
+      const [x1, y1] = pt.geometry.coordinates
+      const [x2, y2] = ahead.geometry.coordinates
+      const targetBearing = computeBearingDeg([x1, y1], [x2, y2])
+
+      // Exponential bearing lerp with angle-wrap: factor 0.06 at 60fps gives
+      // ~500 ms to complete a 90° turn — feels like a plane banking gently.
+      const delta = ((targetBearing - this.flyAlongSmoothedBearing + 540) % 360) - 180
+      this.flyAlongSmoothedBearing = (this.flyAlongSmoothedBearing + delta * 0.06 + 360) % 360
+
+      this.flyAlongMarker?.setLngLat([x1, y1])
+
+      // easeTo with short duration lets Mapbox blend between frames rather
+      // than teleporting — combined with the bearing lerp this removes jitter
+      // entirely at the cost of ~80 ms lag (imperceptible at trail scale).
+      this.map.easeTo({
+        center: [x1, y1],
+        bearing: this.flyAlongSmoothedBearing,
+        pitch: 65,
+        duration: 80,
+        easing: t => t,
+      })
+
+      this.store.dispatch(setFlyAlongProgress(this.flyAlongT))
+
+      if (this.flyAlongT >= 1) {
+        this.stopFlyAlong({ restoreCamera: true })
+        this.store.dispatch(setFlyAlongActive(false))
+        return
+      }
+      this.flyAlongRaf = requestAnimationFrame(tick)
+    }
+
+    this.flyAlongRaf = requestAnimationFrame(tick)
+  }
+
+  // Public surface for the TrailDetailPanel: returns the assembled
+  // polyline + sampled elevations for the elevation-profile SVG. Returns
+  // null if the trail's tiles aren't loaded yet, or if no terrain DEM is
+  // available (in which case the panel renders the stat grid only).
+  getSelectedTrailProfile(samples = 60): {
+    line: GeoJSON.Feature<GeoJSON.LineString>
+    lengthKm: number
+    elevations: number[]   // meters; same length as `samples`
+    gainM: number
+    lossM: number
+  } | null {
+    if (this.selectedTrailId === null) return null
+    const line = this.assembleTrailLine(this.selectedTrailId)
+    if (!line || line.geometry.coordinates.length < 2) return null
+
+    const lengthKm = length(line, { units: 'kilometers' })
+
+    // Sample elevations along the line via the live DEM. If terrain isn't
+    // enabled, queryTerrainElevation returns null and we feed the panel a
+    // zero array (it'll render a flat baseline + omit the gain/loss row).
+    const elevations: number[] = []
+    let gainM = 0
+    let lossM = 0
+    let prev: number | null = null
+    for (let i = 0; i < samples; i++) {
+      const t = i / (samples - 1)
+      const pt = along(line, t * lengthKm, { units: 'kilometers' })
+      const [lng, lat] = pt.geometry.coordinates
+      const elev = this.map.queryTerrainElevation([lng, lat]) ?? 0
+      elevations.push(elev)
+      if (prev !== null) {
+        const d = elev - prev
+        if (d > 0) gainM += d
+        else lossM -= d
+      }
+      prev = elev
+    }
+    return { line, lengthKm, elevations, gainM, lossM }
+  }
+
+  // Coalesces tile-piece geometries (the same trail can span multiple
+  // vector tiles, just like a park polygon does) into a single
+  // LineString. Tippecanoe slices LineStrings at tile borders, so we
+  // concatenate all pieces in their natural source order — good enough
+  // for `turf.along` to produce a smooth ride for any non-self-crossing
+  // trail. Self-crossing or branched routes will look choppy at junctions
+  // (acceptable v1 trade-off).
+  private assembleTrailLine(id: string | number): GeoJSON.Feature<GeoJSON.LineString> | null {
+    const sourceId = this.selectedTrailSource ?? 'trails'
+    if (!this.map.getSource(sourceId)) return null
+    const sourceLayer = sourceId === 'trails' ? TRAILS_SOURCE_LAYER : 'thruhikes'
+
+    const features = this.map.querySourceFeatures(sourceId, {
+      sourceLayer,
+      filter: ['==', ['get', 'osm_id'], id],
+    })
+
+    const coords: number[][] = []
+    for (const f of features) {
+      const g = f.geometry
+      if (g.type === 'LineString') {
+        for (const c of g.coordinates) coords.push(c)
+      } else if (g.type === 'MultiLineString') {
+        for (const line of g.coordinates) for (const c of line) coords.push(c)
+      }
+    }
+    if (coords.length < 2) return null
+    return {
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'LineString', coordinates: coords },
+    }
   }
 
   // ─── Selection: click → mask + satellite overlay ─────────────────────────
@@ -569,6 +1027,40 @@ export class MapEngine {
     }
   }
 
+  // Resolves a SITE_PID string (from a deep-link URL) into the full feature
+  // properties and dispatches setSelectedFeature. If the tiles aren't loaded
+  // yet, retries on every `sourcedata` event until the park is found.
+  resolveAndSelectPark(id: string): void {
+    this.cancelPendingParkRetry()
+    if (this.tryResolvePark(id)) return
+
+    const handler = (e: { sourceId?: string }): void => {
+      if (e.sourceId !== 'national-parks') return
+      if (this.tryResolvePark(id)) this.cancelPendingParkRetry()
+    }
+    this.pendingParkRetry = handler
+    this.map.on('sourcedata', handler)
+  }
+
+  private tryResolvePark(id: string): boolean {
+    const features = this.map.querySourceFeatures('national-parks', {
+      sourceLayer: SOURCE_LAYER,
+      // Coerce to string so numeric SITE_PID values match the string from the URL.
+      filter: ['==', ['to-string', ['get', 'SITE_PID']], id],
+    })
+    if (features.length === 0) return false
+    this.store.dispatch(setSelectedFeature(features[0].properties as HoveredFeatureProperties))
+    this.store.dispatch(setPendingParkId(null))
+    return true
+  }
+
+  private cancelPendingParkRetry(): void {
+    if (this.pendingParkRetry) {
+      this.map.off('sourcedata', this.pendingParkRetry)
+      this.pendingParkRetry = null
+    }
+  }
+
   execute(cmd: MapCommand): void {
     switch (cmd.type) {
       case 'STYLE_RECONCILE':      return this.reconcile(cmd.spec)
@@ -577,6 +1069,10 @@ export class MapEngine {
       case 'FLY_TO':               return void this.map.flyTo(cmd.options as mapboxgl.EasingOptions)
       case 'FIT_BOUNDS':           return void this.map.fitBounds(cmd.bounds, cmd.options)
       case 'EASE_TO':              return void this.map.easeTo(cmd.options as mapboxgl.EasingOptions & { duration?: number })
+      case 'TRAIL_HOVER':          return this.setTrailHover(cmd.trailId)
+      case 'TRAIL_SELECT':         return cmd.trailId === null ? this.deselectTrail() : this.selectTrail(cmd.trailId)
+      case 'START_FLY_ALONG':      return this.startFlyAlong(cmd.trailId)
+      case 'STOP_FLY_ALONG':       return this.stopFlyAlong({ restoreCamera: cmd.restoreCamera })
       case 'UPDATE_GEOJSON':       break
       case 'ADD_LAYER':            break
       case 'REMOVE_LAYER':         break
@@ -844,18 +1340,71 @@ export class MapEngine {
       this.store.dispatch(setHoveredFeature(null))
     })
 
-    // Click: open detail panel. The selection listener (registerListeners)
-    // routes the resulting state change into `engine.selectPark`, which owns
-    // both the satellite/mask overlay and the camera framing.
-    this.map.on('click', (e) => {
-      const features = this.map.queryRenderedFeatures(e.point, { layers: ['parks-fill'] })
+    // Trail hover: highlight + cursor change. Layer ids may not exist in
+    // the live style yet (trails toggle), so guard each event registration.
+    // Hover state lives on whichever source actually has the feature; the
+    // helper inside `setTrailHover` handles the dispatch.
+    this.map.on('mousemove', (e) => {
+      const trailLayers = TRAIL_INTERACTIVE_LAYERS.filter(id => this.map.getLayer(id))
+      if (trailLayers.length === 0) return
+      const hits = this.map.queryRenderedFeatures(e.point, { layers: trailLayers })
+      if (hits.length > 0) {
+        const id = hits[0].id
+        if (id !== undefined) {
+          this.map.getCanvas().style.cursor = 'pointer'
+          this.setTrailHover(id)
+          this.store.dispatch(setHoveredTrail(id))
+        }
+      } else if (this.hoveredTrailId !== null) {
+        this.setTrailHover(null)
+        this.store.dispatch(setHoveredTrail(null))
+      }
+    })
 
-      if (features.length > 0) {
-        const feature = features[0]
-        const props = feature.properties as HoveredFeatureProperties
-        this.store.dispatch(setSelectedFeature(props))
+    // Click: trails take routing priority over parks because the line-width
+    // hit target is much narrower than the park polygon — a click that
+    // hits both is overwhelmingly meant for the trail.
+    //
+    // Trail click DOES NOT clear the park selection: the most interesting
+    // case is a trail inside an already-selected park (Wonderland inside
+    // Mt Rainier), and both panels are designed to stack vertically. Park
+    // click DOES clear the trail (the user moved their attention to a
+    // different park polygon, the trail is no longer in context).
+    //
+    // The selection listeners (registerListeners) route the resulting
+    // state changes into `engine.selectPark` / `engine.selectTrail`.
+    this.map.on('click', (e) => {
+      const trailLayers = TRAIL_INTERACTIVE_LAYERS.filter(id => this.map.getLayer(id))
+      const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+        [e.point.x - 6, e.point.y - 6],
+        [e.point.x + 6, e.point.y + 6],
+      ]
+      const trailHits = trailLayers.length > 0
+        ? this.map.queryRenderedFeatures(bbox, { layers: trailLayers })
+        : []
+      const parkHits = this.map.queryRenderedFeatures(e.point, { layers: ['parks-fill'] })
+
+      // Resolve trail: take the first hit with a usable id.
+      let trailDispatched = false
+      for (const f of trailHits) {
+        const id = f.id ?? (f.properties as { osm_id?: string | number })?.osm_id
+        if (id !== undefined && id !== null) {
+          this.store.dispatch(setSelectedTrail({ id, props: f.properties as TrailProperties }))
+          trailDispatched = true
+          break
+        }
+      }
+
+      // Resolve park: select if hit, clear if not (but don't clear trail on a
+      // trail-only click — the tab panel handles both being open at once).
+      if (parkHits.length > 0) {
+        this.store.dispatch(setSelectedFeature(parkHits[0].properties as HoveredFeatureProperties))
+      } else if (trailDispatched) {
+        // Trail-only click: leave park selection as-is so a trail inside an
+        // already-selected park keeps the park tab available.
       } else {
         this.store.dispatch(setSelectedFeature(null))
+        this.store.dispatch(setSelectedTrail(null))
       }
     })
 

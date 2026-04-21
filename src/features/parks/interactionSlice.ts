@@ -9,12 +9,16 @@ interface ParksInteractionState {
   // closing the panel) auto-resets this to false in the reducer below so the
   // listener middleware can tear down the tour.
   tourActive: boolean
+  // Park id from a deep-link URL, waiting for map tiles to load so the engine
+  // can resolve it into a full selectedFeature. Cleared once resolved.
+  pendingParkId: string | null
 }
 
 const initialState: ParksInteractionState = {
   hoveredFeature: null,
   selectedFeature: null,
   tourActive: false,
+  pendingParkId: null,
 }
 
 const parksInteractionSlice = createSlice({
@@ -34,6 +38,9 @@ const parksInteractionSlice = createSlice({
       // can't activate the engine path.
       state.tourActive = !!state.selectedFeature && action.payload
     },
+    setPendingParkId(state, action: PayloadAction<string | null>) {
+      state.pendingParkId = action.payload
+    },
   },
 })
 
@@ -41,5 +48,6 @@ export const {
   setHoveredFeature,
   setSelectedFeature,
   setTourActive,
+  setPendingParkId,
 } = parksInteractionSlice.actions
 export default parksInteractionSlice.reducer

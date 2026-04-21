@@ -1,3 +1,5 @@
+@import "@fontsource-variable/geologica";
+@import "@fontsource-variable/fraunces";
 @import "tailwindcss/theme";
 @import "tailwindcss/utilities";
 
@@ -39,6 +41,9 @@
 
 /* ─── Theme tokens (defaults = Sage Forest) ─────────────────────────────────── */
 :root {
+  --font-body: 'Geologica Variable', system-ui, sans-serif;
+  --font-display: 'Fraunces Variable', Georgia, serif;
+
   --bg-deep-rgb: 17, 27, 14;
   --bg-rich-rgb: 26, 42, 20;
   --bg-warm-rgb: 37, 60, 28;
@@ -78,6 +83,7 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  font-family: var(--font-body);
 }
 
 #root {
@@ -131,7 +137,7 @@ html, body {
   border-radius: 14px;
   padding: 8px;
   color: var(--text-primary);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 13px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   z-index: 10;
@@ -266,10 +272,9 @@ input[type="range"]:active::-webkit-slider-thumb {
   box-shadow: 0 2px 20px rgba(var(--slider-glow-rgb), 0.8);
 }
 
-/* Park Detail Panel — desktop: docked top-right, ~1/3 viewport width.
-   Mapbox nav + fullscreen now live in the bottom-left, so the panel can
-   sit flush against the top edge. */
-.park-detail-panel {
+/* Detail Panel — unified container for park and trail info.
+   Desktop: docked top-right. Mobile: bottom drawer. */
+.detail-panel {
   position: fixed;
   top: 10px;
   right: 10px;
@@ -280,20 +285,70 @@ input[type="range"]:active::-webkit-slider-thumb {
   backdrop-filter: blur(16px);
   border: 1px solid rgba(var(--accent-rgb), 0.25);
   border-radius: 16px;
-  padding: 18px 20px 20px;
+  padding: 0 0 20px;
   z-index: 30;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
   transform: translateX(calc(100% + 24px));
   transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
 }
 
-.park-detail-panel.visible {
+.detail-panel.visible {
   transform: translateX(0);
 }
 
-/* Hero image / placeholder — bleeds to the panel edges and rounds the top
-   corners. Negative margins counter the panel's 18px/20px padding. */
+/* Tab bar — shown when both park and trail are selected simultaneously */
+.detail-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.18);
+  background: rgba(var(--bg-deep-rgb), 0.5);
+  border-radius: 15px 15px 0 0;
+  overflow: hidden;
+}
+
+.detail-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 8px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: color 0.15s, border-bottom-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.detail-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+
+.detail-tab:hover:not(.active) {
+  color: var(--text-secondary);
+}
+
+
+/* When tabbed, heroes sit below the tab bar — no rounded top corners */
+.detail-panel--tabbed .park-detail-hero,
+.detail-panel--tabbed .trail-detail-hero {
+  border-radius: 0;
+}
+
+/* Park content inner wrapper — provides the padding context for the hero
+   bleed. Hero negative margins cancel this padding to sit edge-to-edge. */
+.park-content-wrapper {
+  padding: 18px 20px 4px;
+}
+
+/* Hero image / placeholder */
 .park-detail-hero {
   margin: -18px -20px 14px;
   height: 140px;
@@ -336,9 +391,95 @@ input[type="range"]:active::-webkit-slider-thumb {
   transform: rotate(180deg);
 }
 
+.trail-detail-hero {
+  height: 140px;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+  background: rgba(var(--bg-deep-rgb), 0.6);
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.18);
+  transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.trail-detail-hero--flyalong {
+  height: 180px;
+}
+
+.trail-flyalong-hud {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 7px 16px;
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.15);
+  background: rgba(var(--bg-deep-rgb), 0.5);
+}
+
+.trail-flyalong-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.trail-flyalong-stat-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.trail-flyalong-stat-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+}
+
+.fly-along-hiker {
+  pointer-events: none;
+  will-change: transform;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.55));
+}
+
+.trail-detail-summary {
+  display: flex;
+  flex-direction: column;
+}
+
+.trail-detail-block {
+  padding: 14px 16px 0;
+}
+
+.trail-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 14px;
+  background: rgba(var(--accent-rgb), 0.18);
+  border: 1px solid rgba(var(--accent-rgb), 0.32);
+  border-radius: 999px;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.trail-detail-toggle:hover {
+  background: rgba(var(--accent-rgb), 0.28);
+  border-color: rgba(var(--accent-rgb), 0.5);
+}
+
+.trail-detail-toggle[aria-pressed='true'] {
+  background: rgba(var(--accent-rgb), 0.4);
+  border-color: rgba(var(--accent-rgb), 0.6);
+}
+
 @media (max-width: 768px) {
-  /* Mobile (collapsed): bottom drawer — touch ergonomics > top-right docking */
-  .park-detail-panel {
+  .detail-panel {
     top: auto;
     bottom: 0;
     right: 0;
@@ -347,12 +488,20 @@ input[type="range"]:active::-webkit-slider-thumb {
     max-width: 100%;
     max-height: 80vh;
     border-radius: 18px 18px 0 0;
-    padding: 20px 22px calc(28px + env(safe-area-inset-bottom));
+    padding: 0 0 calc(20px + env(safe-area-inset-bottom));
     transform: translateY(110%);
   }
 
-  .park-detail-panel.visible {
+  .detail-panel.visible {
     transform: translateY(0);
+  }
+
+  .detail-panel-tabs {
+    border-radius: 17px 17px 0 0;
+  }
+
+  .park-content-wrapper {
+    padding: 20px 22px 4px;
   }
 
   .park-detail-hero {
@@ -361,13 +510,18 @@ input[type="range"]:active::-webkit-slider-thumb {
     border-radius: 18px 18px 0 0;
   }
 
-  /* Mobile + Full detail: split into two glass cards (top summary, bottom
-     expanded info) with a transparent gap in the middle so the orbit tour
-     stays visible behind. The panel container itself becomes a transparent
-     fullscreen overlay; pointer-events pass through everywhere except the
-     two cards, so tapping the gap reaches the map (which also stops the
-     tour via MapEngine's user-interaction listener). */
-  .park-detail-panel.expanded {
+  .trail-detail-hero {
+    height: 120px;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .trail-detail-hero--flyalong {
+    height: 160px;
+  }
+
+  /* Mobile + Full detail: split into two glass cards with a transparent gap
+     so the orbit tour stays visible behind. */
+  .detail-panel.expanded {
     top: 0;
     bottom: 0;
     left: 0;
@@ -389,12 +543,8 @@ input[type="range"]:active::-webkit-slider-thumb {
     gap: 12px;
   }
 
-  /* Cards re-enable pointer-events and provide a faint glass FRAME — the
-     opacity lives on the inner .park-detail-block elements so the map shows
-     through everywhere except where there's actual content. This makes the
-     map feel bigger while keeping the cards' bounding shape readable. */
-  .park-detail-panel.expanded .park-detail-summary,
-  .park-detail-panel.expanded .park-detail-expanded {
+  .detail-panel.expanded .park-detail-summary,
+  .detail-panel.expanded .park-detail-expanded {
     pointer-events: auto;
     background: linear-gradient(160deg, rgba(var(--bg-deep-rgb), 0.22), rgba(var(--bg-rich-rgb), 0.18));
     backdrop-filter: blur(8px);
@@ -403,10 +553,7 @@ input[type="range"]:active::-webkit-slider-thumb {
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   }
 
-  /* Inner content blocks — opaque "floating" surfaces that carry the actual
-     legibility weight. Only styled in mobile-expanded; the wrapper class is
-     a no-op everywhere else. */
-  .park-detail-panel.expanded .park-detail-block {
+  .detail-panel.expanded .park-detail-block {
     background: rgba(var(--bg-deep-rgb), 0.82);
     backdrop-filter: blur(14px);
     border: 1px solid rgba(var(--accent-rgb), 0.22);
@@ -414,35 +561,24 @@ input[type="range"]:active::-webkit-slider-thumb {
     padding: 8px 10px;
   }
 
-  /* Tighten prose inside the expanded card — line-height drops from
-     `leading-relaxed` (1.625) so descriptions and summaries fit more text
-     per scroll page. */
-  .park-detail-panel.expanded .park-detail-expanded p {
+  .detail-panel.expanded .park-detail-expanded p {
     line-height: 1.4 !important;
   }
 
-  /* Top card: title + country + toggle (hero + chips hidden in tour mode). */
-  .park-detail-panel.expanded .park-detail-summary {
+  .detail-panel.expanded .park-detail-summary {
     padding: 14px 16px 14px;
     flex-shrink: 0;
   }
 
-  .park-detail-panel.expanded .park-detail-chips {
+  .detail-panel.expanded .park-detail-chips {
     display: none;
   }
 
-  /* Hide hero in expanded/tour mode — the satellite orbit is the visual. */
-  .park-detail-panel.expanded .park-detail-hero {
+  .detail-panel.expanded .park-detail-hero {
     display: none;
   }
 
-  /* Bottom card: long-form info. Capped at ~1/3 of viewport so the live tour
-     (between the two cards) always has visible breathing room — content
-     beyond the cap scrolls internally. `margin-top: auto` pushes the card
-     to the bottom of the flex column. The flex+gap inside replaces the
-     existing tailwind margin utilities on each child block, giving us
-     consistent compact spacing regardless of which sections are present. */
-  .park-detail-panel.expanded .park-detail-expanded {
+  .detail-panel.expanded .park-detail-expanded {
     max-height: 26vh;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -454,9 +590,7 @@ input[type="range"]:active::-webkit-slider-thumb {
     gap: 6px;
   }
 
-  /* Neutralize per-child tailwind margins (mb-2.5 / mb-3.5 etc.) — the flex
-     `gap` above is now the single source of vertical rhythm in this card. */
-  .park-detail-panel.expanded .park-detail-expanded > * {
+  .detail-panel.expanded .park-detail-expanded > * {
     margin-top: 0 !important;
     margin-bottom: 0 !important;
   }
@@ -474,7 +608,7 @@ input[type="range"]:active::-webkit-slider-thumb {
   border-radius: 12px;
   padding: 10px 12px;
   color: var(--text-primary);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-size: 13px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   z-index: 10;
@@ -611,7 +745,7 @@ input[type="range"]:active::-webkit-slider-thumb {
 
 .popup-content {
   padding: 16px;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
 }
 
 .popup-title {
@@ -815,4 +949,141 @@ input[type="range"]:active::-webkit-slider-thumb {
   .control-panel { max-height: 85vh; }
 
   .mobile-toggles { bottom: calc(12px + env(safe-area-inset-bottom)); }
+}
+
+/* ── Favorites ───────────────────────────────────────────────────────────── */
+
+.favorites-trigger {
+  position: fixed;
+  bottom: 20px;
+  left: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, rgba(var(--bg-deep-rgb), 0.95), rgba(var(--bg-rich-rgb), 0.92));
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  z-index: 20;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.favorites-trigger:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+}
+
+.favorites-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+.favorites-drawer {
+  position: fixed;
+  bottom: 68px;
+  left: 10px;
+  width: 260px;
+  max-height: 55vh;
+  overflow-y: auto;
+  background: linear-gradient(145deg, rgba(var(--bg-deep-rgb), 0.97), rgba(var(--bg-rich-rgb), 0.95));
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 19;
+  transform: translateY(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+  font-family: var(--font-body);
+}
+
+.favorites-drawer.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.favorites-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.15);
+}
+
+.favorites-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.favorites-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+
+.favorites-entry-info {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.favorites-entry-info:hover {
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+.favorites-entry-remove {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.favorites-entry-remove:hover {
+  color: var(--text-primary);
+  background: rgba(var(--accent-rgb), 0.15);
+}
+
+@media (max-width: 768px) {
+  .favorites-trigger { bottom: 80px; }
+  .favorites-drawer  { bottom: 128px; }
 }

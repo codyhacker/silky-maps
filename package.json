@@ -11,8 +11,12 @@
   "dependencies": {
     "@amcharts/amcharts5": "^5.15.4",
     "@amcharts/amcharts5-geodata": "^5.1.5",
+    "@fontsource-variable/fraunces": "^5.2.9",
+    "@fontsource-variable/geologica": "^5.2.8",
     "@mapbox/mapbox-gl-style-spec": "^14.22.0",
     "@reduxjs/toolkit": "^2.11.2",
+    "@turf/along": "^7.3.5",
+    "@turf/length": "^7.3.5",
     "mapbox-gl": "^3.21.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

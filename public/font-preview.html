@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>SilkyMaps · Font Preview</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+
+<!-- Google Fonts: Fraunces (variable, opsz/wght/SOFT/WONK), Work Sans, Big Shoulders Stencil Display, Bitter, DM Serif Display, DM Sans, Bricolage Grotesque, Eczar, Inter -->
+<link
+  href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,0..100,0..1&family=Work+Sans:wght@300;400;500;600;700&family=Big+Shoulders+Stencil+Display:wght@500;700;900&family=Bitter:ital,wght@0,400;0,500;0,700;1,400&family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Eczar:wght@500;600;800&family=Inter:wght@400;500;600&display=swap"
+  rel="stylesheet"
+/>
+
+<!-- Fontshare: Cabinet Grotesk + Satoshi -->
+<link
+  href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&f[]=satoshi@400,500,700&display=swap"
+  rel="stylesheet"
+/>
+
+<style>
+  /* ── Sage Forest dark palette (current default) ─────────────────────── */
+  :root {
+    --bg-deep-rgb: 17, 27, 14;
+    --bg-rich-rgb: 26, 42, 20;
+    --accent-rgb: 100, 155, 75;
+    --text-primary: rgba(245, 252, 240, 0.92);
+    --text-secondary: rgba(220, 240, 215, 0.7);
+    --text-muted: rgba(180, 210, 175, 0.5);
+    --title-start: #c4e464;
+    --title-mid: #8cc43a;
+    --title-end: #5a8a1a;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background:
+      radial-gradient(circle at 20% 0%, rgba(var(--accent-rgb), 0.12), transparent 55%),
+      radial-gradient(circle at 80% 100%, rgba(var(--accent-rgb), 0.08), transparent 55%),
+      linear-gradient(160deg, rgb(var(--bg-deep-rgb)), rgb(var(--bg-rich-rgb)));
+    background-attachment: fixed;
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+  }
+
+  .page-header {
+    margin-bottom: 48px;
+  }
+  .page-header h1 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .page-header p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    max-width: 580px;
+    line-height: 1.6;
+  }
+
+  /* ── Cards ──────────────────────────────────────────────────────────── */
+  .grid {
+    display: grid;
+    gap: 24px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 880px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .card {
+    position: relative;
+    padding: 32px 28px 28px;
+    border-radius: 14px;
+    background:
+      linear-gradient(145deg, rgba(var(--bg-deep-rgb), 0.85), rgba(var(--bg-rich-rgb), 0.7));
+    border: 1px solid rgba(var(--accent-rgb), 0.2);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  }
+  .card .badge {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  .card .stack {
+    margin: 0 0 24px;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  /* The "lockup" mimics the actual ControlPanel header layout. */
+  .lockup {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    background: rgba(var(--bg-deep-rgb), 0.55);
+    border: 1px solid rgba(var(--accent-rgb), 0.22);
+    border-radius: 10px;
+    margin-bottom: 14px;
+  }
+  .lockup .globe {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 30% 30%,
+        rgba(var(--accent-rgb), 1),
+        rgba(var(--accent-rgb), 0.4) 70%,
+        rgba(var(--bg-deep-rgb), 1));
+    border: 1px solid rgba(var(--accent-rgb), 0.5);
+    box-shadow: inset -3px -3px 6px rgba(0,0,0,0.4);
+  }
+  .lockup .title {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--title-start), var(--title-mid), var(--title-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+  }
+  .lockup .ver {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  .hero {
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--title-start), var(--title-mid), var(--title-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 18px 0 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    max-width: 42ch;
+    margin: 14px 0 0;
+  }
+
+  /* ── Per-direction font assignments ─────────────────────────────────── */
+
+  /* A — Fraunces + Work Sans */
+  .card-a .lockup .title,
+  .card-a .hero {
+    font-family: 'Fraunces', Georgia, serif;
+    font-variation-settings: 'opsz' 144, 'SOFT' 60, 'WONK' 1;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  .card-a .sub { font-family: 'Work Sans', system-ui, sans-serif; font-weight: 400; }
+  .card-a .lockup .ver { font-family: 'Work Sans', system-ui, sans-serif; }
+
+  /* B — Cabinet Grotesk + Satoshi */
+  .card-b .lockup .title,
+  .card-b .hero {
+    font-family: 'Cabinet Grotesk', system-ui, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .card-b .sub { font-family: 'Satoshi', system-ui, sans-serif; font-weight: 400; }
+  .card-b .lockup .ver { font-family: 'Satoshi', system-ui, sans-serif; }
+
+  /* C — Big Shoulders Stencil + Bitter */
+  .card-c .lockup .title,
+  .card-c .hero {
+    font-family: 'Big Shoulders Stencil Display', 'Big Shoulders Display', system-ui, sans-serif;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .card-c .lockup .title { font-size: 22px; }
+  .card-c .hero { font-size: 64px; }
+  .card-c .sub { font-family: 'Bitter', Georgia, serif; font-weight: 400; }
+  .card-c .lockup .ver { font-family: 'Bitter', Georgia, serif; }
+
+  /* D — system-ui (current baseline) */
+  .card-d .lockup .title,
+  .card-d .hero {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+  }
+  .card-d .sub { font-family: system-ui, -apple-system, sans-serif; }
+
+  /* E — DM Serif Display + DM Sans (high-contrast modern serif) */
+  .card-e .lockup .title,
+  .card-e .hero {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+  .card-e .sub { font-family: 'DM Sans', system-ui, sans-serif; }
+  .card-e .lockup .ver { font-family: 'DM Sans', system-ui, sans-serif; }
+
+  /* F — Bricolage Grotesque (variable, characterful single-family) */
+  .card-f .lockup .title,
+  .card-f .hero {
+    font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+    font-variation-settings: 'opsz' 96;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+  }
+  .card-f .sub { font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-variation-settings: 'opsz' 14; font-weight: 400; }
+  .card-f .lockup .ver { font-family: 'Bricolage Grotesque', system-ui, sans-serif; }
+
+  /* G — Eczar + Inter (warm Indian-foundry serif + neutral body) */
+  .card-g .lockup .title,
+  .card-g .hero {
+    font-family: 'Eczar', Georgia, serif;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+  }
+  .card-g .sub { font-family: 'Inter', system-ui, sans-serif; }
+  .card-g .lockup .ver { font-family: 'Inter', system-ui, sans-serif; }
+
+  /* H — Fraunces wonky (same as A but with wonk dialed up — for comparison) */
+  .card-h .lockup .title,
+  .card-h .hero {
+    font-family: 'Fraunces', Georgia, serif;
+    font-variation-settings: 'opsz' 144, 'SOFT' 100, 'WONK' 1;
+    font-weight: 700;
+    font-style: italic;
+    letter-spacing: -0.02em;
+  }
+  .card-h .sub { font-family: 'Work Sans', system-ui, sans-serif; }
+  .card-h .lockup .ver { font-family: 'Work Sans', system-ui, sans-serif; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="page-header">
+    <h1>SilkyMaps · Font Direction Preview</h1>
+    <p>
+      Each card shows the title at its real in-app size (the docked header lockup) and at hero scale.
+      Subhead text uses the proposed body face. The Sage Forest dark palette is applied so colors match
+      a real load.
+    </p>
+  </header>
+
+  <div class="grid">
+
+    <!-- A -->
+    <section class="card card-a">
+      <span class="badge">A</span>
+      <h2>Sunset magazine, 1962</h2>
+      <p class="stack">Fraunces (opsz 144, SOFT 60, WONK 1) · Work Sans</p>
+
+      <div class="lockup">
+        <div class="globe"></div>
+        <span class="title">SilkyMaps</span>
+        <span class="ver">v0.1</span>
+      </div>
+
+      <div class="hero">SilkyMaps</div>
+
+      <p class="sub">
+        Earthy, crafted, slightly hand-cut. The flared terminals come from Fraunces's WONK
+        axis — pull it back to 0 and the same family reads as a clean modern serif.
+      </p>
+    </section>
+
+    <!-- B -->
+    <section class="card card-b">
+      <span class="badge">B</span>
+      <h2>Modern studio doing mid-century</h2>
+      <p class="stack">Cabinet Grotesk · Satoshi</p>
+
+      <div class="lockup">
+        <div class="globe"></div>
+        <span class="title">SilkyMaps</span>
+        <span class="ver">v0.1</span>
+      </div>
+
+      <div class="hero">SilkyMaps</div>
+
+      <p class="sub">
+        Quietly characterful. Reads modern but the proportions are warmer than Inter or
+        Helvetica — what a 2024 boutique brand that reveres Knoll would commission.
+      </p>
+    </section>
+
+    <!-- C -->
+    <section class="card card-c">
+      <span class="badge">C</span>
+      <h2>WPA poster, parks ranger badge</h2>
+      <p class="stack">Big Shoulders Stencil Display · Bitter</p>
+
+      <div class="lockup">
+        <div class="globe"></div>
+        <span class="title">SILKYMAPS</span>
+        <span class="ver">v0.1</span>
+      </div>
+
+      <div class="hero">SILKYMAPS</div>
+
+      <p class="sub">
+        Most committed to the period — leans into the National Park Service / WPA
+        lineage. Best used only on the title; everything else stays on a neutral body.
+      </p>
+    </section>
+
+    <!-- D -->
+    <section class="card card-d">
+      <span class="badge">D</span>
+      <h2>Current baseline (system-ui)</h2>
+      <p class="stack">system-ui, -apple-system, sans-serif</p>
+
+      <div class="lockup">
+        <div class="globe"></div>
+        <span class="title">SilkyMaps</span>
+        <span class="ver">v0.1</span>
+      </div>
+
+      <div class="hero">SilkyMaps</div>
+
+      <p class="sub">
+        Today's app. Useful as a control — toggle between this card and the others to feel
+        what each direction is actually contributing.
+      </p>
+    </section>
+
+    <!-- E -->
+    <section class="card card-e">
+      <span class="badge">E</span>
+      <h2>High-contrast modern serif</h2>
+      <p class="stack">DM Serif Display · DM Sans</p>
+
+      <div class="lockup">
+        <div class="globe"></div>
+        <span class="title">SilkyMaps</span>
+        <span class="ver">v0.1</span>
+      </div>
+
+      <div class="hero">SilkyMaps</div>
+
+      <p class="sub">
+        Editorial weight. The thick/thin contrast reads more publishing-house than camp-store —
+        slightly less mid-century, more "well-designed magazine". Strong but cooler.
+      </p>
+    </section>
+
+    <!-- F -->
+    <section class="card card-f">
+      <span class="badge">F</span>
+      <h2>Variable single-family</h2>
+      <p class="stack">Bricolage Grotesque (opsz 12..96)</p>
+
+      <div class="lockup">
+        <div class="globe"></div>
+        <span class="title">SilkyMaps</span>
+        <span class="ver">v0.1</span>
+      </div>
+
+      <div class="hero">SilkyMaps</div>
+
+      <p class="sub">
+        One family, all sizes — the optical-size axis automatically tightens spacing and
+        thickens curves at display sizes. Quirky enough to feel like a choice, neutral
+        enough not to date quickly.
+      </p>
+    </section>
+
+    <!-- G -->
+    <section class="card card-g">
+      <span class="badge">G</span>
+      <h2>Warm earthy serif</h2>
+      <p class="stack">Eczar · Inter</p>
+
+      <div class="lockup">
+        <div class="globe"></div>
+        <span class="title">SilkyMaps</span>
+        <span class="ver">v0.1</span>
+      </div>
+
+      <div class="hero">SilkyMaps</div>
+
+      <p class="sub">
+        Eczar is by Indian Type Foundry — a soft, rounded serif with strong personality
+        but full readability. Pair with a neutral body so the title carries the character.
+      </p>
+    </section>
+
+    <!-- H -->
+    <section class="card card-h">
+      <span class="badge">H</span>
+      <h2>Fraunces, dialed up (italic, soft, wonky)</h2>
+      <p class="stack">Fraunces (italic, SOFT 100, WONK 1) · Work Sans</p>
+
+      <div class="lockup">
+        <div class="globe"></div>
+        <span class="title">SilkyMaps</span>
+        <span class="ver">v0.1</span>
+      </div>
+
+      <div class="hero">SilkyMaps</div>
+
+      <p class="sub">
+        Same family as direction A but with the wonk and softness pushed to the maximum
+        and italic on. This is "what's the most personality I can extract from one font
+        without leaving it" — useful as a counterpoint to A.
+      </p>
+    </section>
+
+  </div>
+</div>
+
+</body>
+</html>

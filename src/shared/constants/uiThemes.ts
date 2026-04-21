@@ -69,6 +69,16 @@ export interface UiPalette {
   mapLabelCountry: string
   mapLabelHalo: string
 
+  // Hiking trails — overlays drawn on top of the basemap. Casing is the
+  // wider darker underlay (gives the line a "ribbon" look on busy
+  // landcover); thru is the accent color for named long-distance routes
+  // (PCT, AT, GR…); halo is the label outline color (usually `mapBg`
+  // so labels punch through the surrounding basemap cleanly).
+  mapTrail: string
+  mapTrailCasing: string
+  mapTrailThru: string
+  mapTrailHalo: string
+
   // Globe atmosphere + space (Mapbox `setFog()` payload — keys match spec)
   mapFog: {
     color: string             // lower atmosphere / horizon haze
@@ -144,6 +154,12 @@ const SAGE_FOREST: UiTheme = {
     mapLabelCity: '#a8c87a',
     mapLabelCountry: '#bcd898',
     mapLabelHalo: '#111b0e',
+    // Cool blue against the amber park ramp — clear hue separation so
+    // trails read as a distinct layer from park polygon fills.
+    mapTrail: '#60a5fa',
+    mapTrailCasing: '#0d1a0a',
+    mapTrailThru: '#a78bfa',
+    mapTrailHalo: '#0d1a0a',
     mapFog: {
       color: '#1a2820',
       'high-color': '#3a5a32',
@@ -225,6 +241,12 @@ const DARK_EARTH: UiTheme = {
     mapLabelCity: '#c8a870',
     mapLabelCountry: '#dcc090',
     mapLabelHalo: '#1c1410',
+    // Warm amber against the teal park ramp — clear hue separation so
+    // trails read as a distinct layer from park polygon fills.
+    mapTrail: '#f59e0b',
+    mapTrailCasing: '#1a1109',
+    mapTrailThru: '#fb923c',
+    mapTrailHalo: '#1a1109',
     mapFog: {
       color: '#2a1d10',
       'high-color': '#5a3e1c',
@@ -306,6 +328,12 @@ const SLATE_MIST: UiTheme = {
     mapLabelCity: '#8ab8cc',
     mapLabelCountry: '#a8ccd8',
     mapLabelHalo: '#0f1820',
+    // Emerald against the orange park ramp — clear hue separation so
+    // trails read as a distinct layer from park polygon fills.
+    mapTrail: '#34d399',
+    mapTrailCasing: '#0d1620',
+    mapTrailThru: '#22d3ee',
+    mapTrailHalo: '#0d1620',
     mapFog: {
       color: '#15283c',
       'high-color': '#2c5878',
@@ -406,6 +434,12 @@ const BOTANICA: UiTheme = {
     mapLabelCity: '#CBB89D',     // Butter
     mapLabelCountry: '#EDE1D2',  // Coconut
     mapLabelHalo: '#1a1008',
+    // Orange against the lime park ramp — clear hue separation so
+    // trails read as a distinct layer from park polygon fills.
+    mapTrail: '#fb923c',
+    mapTrailCasing: '#180e06',
+    mapTrailThru: '#fbbf24',
+    mapTrailHalo: '#180e06',
     mapFog: {
       color: '#2a1812',          // dark Cocoa horizon
       'high-color': '#5D2510',   // Palm Oil upper atmosphere
@@ -488,6 +522,11 @@ const SAGE_LIGHT: UiPalette = {
   mapLabelCity: '#3a6437',
   mapLabelCountry: '#1c3a1c',
   mapLabelHalo: '#ddecd5',
+  // Deep blue against the amber park ramp on a pale sage basemap.
+  mapTrail: '#1d4ed8',
+  mapTrailCasing: '#e4ecdc',
+  mapTrailThru: '#4338ca',
+  mapTrailHalo: '#e4ecdc',
   mapFog: { color: '#c8dcc0', 'high-color': '#a0c090', 'space-color': '#4a7040', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
   dataPalette: SAGE_FOREST.palette.dataPalette,
 }
@@ -536,6 +575,10 @@ const EARTH_LIGHT: UiPalette = {
   mapLabelCity: '#7a4418',
   mapLabelCountry: '#2a1808',
   mapLabelHalo: '#f0e2cc',
+  mapTrail: '#b45309',
+  mapTrailCasing: '#f4e8d4',
+  mapTrailThru: '#92400e',
+  mapTrailHalo: '#f4e8d4',
   mapFog: { color: '#d8c0a0', 'high-color': '#b89870', 'space-color': '#584020', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
   dataPalette: DARK_EARTH.palette.dataPalette,
 }
@@ -584,6 +627,10 @@ const MIST_LIGHT: UiPalette = {
   mapLabelCity: '#284478',
   mapLabelCountry: '#121c30',
   mapLabelHalo: '#d8e6f5',
+  mapTrail: '#166534',
+  mapTrailCasing: '#e0eaf4',
+  mapTrailThru: '#0f766e',
+  mapTrailHalo: '#e0eaf4',
   mapFog: { color: '#b0c8e0', 'high-color': '#90aac8', 'space-color': '#284860', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
   dataPalette: SLATE_MIST.palette.dataPalette,
 }
@@ -632,6 +679,10 @@ const BOTANICA_LIGHT: UiPalette = {
   mapLabelCity: '#6A6F4C',
   mapLabelCountry: '#231810',
   mapLabelHalo: '#f0e8dc',
+  mapTrail: '#9a3412',
+  mapTrailCasing: '#f4ece0',
+  mapTrailThru: '#7c2d12',
+  mapTrailHalo: '#f4ece0',
   mapFog: { color: '#d8c8b0', 'high-color': '#c0a880', 'space-color': '#4a3828', 'horizon-blend': 0.06, 'star-intensity': 0.1 },
   dataPalette: BOTANICA.palette.dataPalette,
 }
