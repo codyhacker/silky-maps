@@ -35,6 +35,8 @@ jobs:
         env:
           VITE_MAPBOX_ACCESS_TOKEN: ${{ secrets.VITE_MAPBOX_ACCESS_TOKEN }}
           VITE_PMTILES_URL: ${{ secrets.VITE_PMTILES_URL }}
+          VITE_TRAILS_PMTILES_URL: ${{ secrets.VITE_TRAILS_PMTILES_URL }}
+          VITE_THRUHIKES_PMTILES_URL: ${{ secrets.VITE_THRUHIKES_PMTILES_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
