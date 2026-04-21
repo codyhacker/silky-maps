@@ -46,7 +46,8 @@ src/
                   registerListeners.ts, styleAugmentation.ts, commands.ts
     parks/        filterSlice.ts, interactionSlice.ts
     trails/       filterSlice.ts, interactionSlice.ts
-    panels/       ControlPanel.tsx, LegendPanel.tsx, ParkDetailPanel.tsx, TrailDetailPanel.tsx
+    panels/       ControlPanel.tsx, LegendPanel.tsx, DetailPanel.tsx,
+                  ParkDetailPanel.tsx, TrailDetailPanel.tsx
     shell/        MobileToggles.tsx, uiSlice.ts
   shared/
     api/          parkMedia.ts
@@ -83,19 +84,22 @@ Race protection: the stitch is async, so an `AbortController` is wired through `
 
 Programmatic stops ("Show less", panel close) `easeTo` back to `preTourCamera`. User-gesture stops do not (the user is already driving the camera). Closing the panel while the tour is active first stops the tour without restoring (the deselect-camera restore supersedes it).
 
+### Detail panel wrapper (`src/features/panels/DetailPanel.tsx`)
+Single container for park + trail detail views. When only one of the two is selected, the matching child panel renders solo. When both are selected, `DetailPanel` renders a two-button tab header (park name / trail name with hiker glyph) and shows the active tab — both children stay mounted with `display: none` so their async state (Wikipedia fetch, elevation profile) survives tab switches. During `tourActive` the tab header is suppressed and only the park panel shows (expanded), since the orbit tour is a park-scoped view.
+
 ### Park detail panel (`src/features/panels/ParkDetailPanel.tsx`)
-On park selection, fetches Wikipedia hero image + summary via `src/shared/api/parkMedia.ts` (en.wikipedia.org REST summary API, in-memory cached). Mobile: bottom drawer (collapsed) → fullscreen transparent overlay with two glass cards and the live tour visible between them (expanded).
+Rendered inside `DetailPanel`. On park selection, fetches Wikipedia hero image + summary via `src/shared/api/parkMedia.ts` (en.wikipedia.org REST summary API, in-memory cached). Mobile: bottom drawer (collapsed) → fullscreen transparent overlay with two glass cards and the live tour visible between them (expanded).
 
 ### Hiking trails
 A separate vector source pair (`trails`, `thruhikes`) sourced from OSM. Five layers (`trails-casing`, `trails-primary`, `trails-dashed`, `trails-thru`, `trails-labels`) are added to `selectAugmentationSpec` whenever `trailsFilter.visible` is true. The `dashed` variant is gated on `surface ∈ {gravel, unpaved}`; everything else is filter expressions over the trail properties (`length_km`, `surface`, `difficulty`).
 
-**Click routing**: trails take priority over parks in `MapEngine.registerMapEvents` because the line hit-target is much narrower than a park polygon. A trail click does NOT clear the park selection — both panels can show simultaneously (trail-inside-park is the canonical case), and the trail panel slides to the LEFT of the park panel via a `:has(.park-detail-panel.visible)` rule in `index.css`. A park click DOES clear the trail.
+**Click routing**: trails take priority over parks in `MapEngine.registerMapEvents` because the line hit-target is much narrower than a park polygon. A trail click does NOT clear the park selection — both panels can be active simultaneously (trail-inside-park is the canonical case), and `DetailPanel` surfaces the second selection as a tab rather than a second floating card. A park click DOES clear the trail.
 
 **Trail selection** (`engine.selectTrail` / `deselectTrail`) is much lighter than park selection — no satellite stitch, no mask. It just sets feature-state on the trail to drive the highlight/casing in the augmentation spec, then `fitBounds` to the assembled line.
 
 **Fly-along tour** (`engine.startFlyAlong`) — the trail equivalent of the orbit tour. Triggered by the "Fly along →" button in `TrailDetailPanel`. Coalesces tile-sliced LineStrings via `assembleTrailLine`, then a `requestAnimationFrame` loop walks `@turf/along` at a fixed wall-clock duration, with `computeBearingDeg` orienting the camera tangent to the path. Same user-gesture cancellation contract as `startTour`.
 
-**Trail detail panel** (`src/features/panels/TrailDetailPanel.tsx`) renders an SVG elevation profile sampled from the live terrain DEM via `engine.getSelectedTrailProfile()`, plus stat tiles (length / elevation gain / surface / difficulty) and the fly-along button. There is intentionally no Wikipedia lookup — most trails aren't notable enough to have an article and the elevation plot is the more honest "what is this trail" signal.
+**Trail detail panel** (`src/features/panels/TrailDetailPanel.tsx`) is rendered inside `DetailPanel` and draws an SVG elevation profile sampled from the live terrain DEM via `engine.getSelectedTrailProfile()`, plus stat tiles (length / elevation gain / surface / difficulty) and the fly-along button. There is intentionally no Wikipedia lookup — most trails aren't notable enough to have an article and the elevation plot is the more honest "what is this trail" signal.
 
 **Adding/changing trail data**: re-run `scripts/build-trails-pmtiles.sh <pbf>` and re-host the resulting `.pmtiles`. The spatial-join script (`_spatial_join_trails.py`) tags each trail with the `SITE_PID` of any containing WDPA park (the `inside_park` property the panel surfaces).
 

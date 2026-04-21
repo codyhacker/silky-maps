@@ -3,7 +3,7 @@ import * as am5 from '@amcharts/amcharts5'
 import * as am5map from '@amcharts/amcharts5/map'
 import am5geodata_worldLow from '@amcharts/amcharts5-geodata/worldLow'
 import { useAppSelector } from '../../app/hooks'
-import { getUiTheme } from '../constants/uiThemes'
+import { getEffectivePalette, getUiTheme } from '../constants/uiThemes'
 
 interface TitleGlobeProps {
   size?: number
@@ -25,6 +25,7 @@ export function TitleGlobe({ size = 32 }: TitleGlobeProps) {
   const rootRef         = useRef<am5.Root | null>(null)
 
   const selectedUiTheme = useAppSelector(s => s.mapStyle.selectedUiTheme)
+  const uiMode          = useAppSelector(s => s.mapStyle.uiMode)
 
   // ── Create chart once ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -35,7 +36,7 @@ export function TitleGlobe({ size = 32 }: TitleGlobeProps) {
     root.setThemes([])
     if (root._logo) root._logo.dispose()
 
-    const palette = getUiTheme(selectedUiTheme).palette
+    const palette = getEffectivePalette(getUiTheme(selectedUiTheme), uiMode)
 
     const chart = root.container.children.push(
       am5map.MapChart.new(root, {
@@ -114,7 +115,7 @@ export function TitleGlobe({ size = 32 }: TitleGlobeProps) {
     const ocean = oceanSeriesRef.current
     if (!land || !ocean) return
 
-    const palette = getUiTheme(selectedUiTheme).palette
+    const palette = getEffectivePalette(getUiTheme(selectedUiTheme), uiMode)
 
     land.mapPolygons.template.setAll({
       fill:   am5.color(hexToAm(palette.activeStart)),
@@ -125,7 +126,7 @@ export function TitleGlobe({ size = 32 }: TitleGlobeProps) {
       fill:   am5.color(hexToAm(rgbTripletToHex(palette.bgRichRgb))),
       stroke: am5.color(hexToAm(palette.accentHex)),
     })
-  }, [selectedUiTheme])
+  }, [selectedUiTheme, uiMode])
 
   return (
     <div

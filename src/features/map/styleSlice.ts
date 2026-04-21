@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_UI_THEME_ID } from '../../shared/constants/uiThemes'
+import { loadPersisted } from '../../app/persist'
 
 interface MapStyleState {
   selectedTheme: number
@@ -17,6 +18,7 @@ const initialState: MapStyleState = {
   selectedUiTheme: DEFAULT_UI_THEME_ID,
   uiMode: 'light',
   basemapSync: true,
+  ...loadPersisted<MapStyleState>('mapStyle'),
 }
 
 const mapStyleSlice = createSlice({
