@@ -12,6 +12,12 @@ export type MapCommand =
   | { type: 'FIT_BOUNDS'; bounds: LngLatBoundsLike; options?: FitBoundsOptions }
   | { type: 'EASE_TO';    options: EasingOptions }
 
+  // ── Trails ────────────────────────────────────────────────────────────────
+  | { type: 'TRAIL_HOVER';     trailId: string | number | null }
+  | { type: 'TRAIL_SELECT';    trailId: string | number | null }
+  | { type: 'START_FLY_ALONG'; trailId: string | number }
+  | { type: 'STOP_FLY_ALONG';  restoreCamera?: boolean }
+
   // ── Data / layers (future) ────────────────────────────────────────────────
   | { type: 'UPDATE_GEOJSON';       sourceId: string; data: unknown }
   | { type: 'ADD_LAYER';            spec: AnyLayer; before?: string }

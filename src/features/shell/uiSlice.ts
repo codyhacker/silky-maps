@@ -3,6 +3,7 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 interface SectionsOpenState {
   filters: boolean
   dataStyle: boolean
+  trails: boolean
   mapStyle: boolean
 }
 
@@ -17,7 +18,7 @@ interface UIState {
 }
 
 const initialState: UIState = {
-  sectionsOpen: { filters: false, dataStyle: false, mapStyle: false },
+  sectionsOpen: { filters: false, dataStyle: false, trails: false, mapStyle: false },
   showControls: false,
   showLegend: false,
   legendCollapsed: true,

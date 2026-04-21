@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../../app/hooks'
 import { setSelectedFeature, setTourActive } from '../parks/interactionSlice'
+import { addFavorite, removeFavorite } from '../favorites/favoritesSlice'
 import {
   IUCN_LABELS,
   IUCN_DESCRIPTIONS,
@@ -15,6 +16,8 @@ import { ParkPlaceholderImage } from '../../shared/components/ParkPlaceholderIma
 export function ParkDetailPanel() {
   const dispatch = useAppDispatch()
   const feature  = useAppSelector(s => s.parksInteraction.selectedFeature)
+  const observed = useAppSelector(s => s.camera.observed)
+  const favorites = useAppSelector(s => s.favorites.entries)
 
   const visible = feature !== null
   const name    = feature ? String(feature.NAME || feature.NAME_ENG || 'Unknown Park') : ''
@@ -36,6 +39,7 @@ export function ParkDetailPanel() {
   const [media, setMedia] = useState<ParkMedia | null>(null)
   const [imageFailed, setImageFailed] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const wikiQuery  = feature ? String(feature.NAME_ENG || feature.NAME || '').trim() : ''
   const featureKey = feature?.SITE_PID != null ? String(feature.SITE_PID) : wikiQuery
@@ -58,16 +62,35 @@ export function ParkDetailPanel() {
     !!iucnLabel || !!desig || !!iucnDesc || !!media?.summary || !!govLabel ||
     !!(area && area.comparison) || !!since
 
+  const featureId = feature?.SITE_PID != null ? String(feature.SITE_PID) : null
+  const isFavorited = featureId !== null && favorites.some(e => e.id === featureId)
+
   function handleToggle() {
     const next = !expanded
     setExpanded(next)
     dispatch(setTourActive(next))
   }
 
-  const panelClass = `park-detail-panel${visible ? ' visible' : ''}${expanded ? ' expanded' : ''}`
+  function handleSave() {
+    if (!feature) return
+    if (isFavorited && featureId) {
+      dispatch(removeFavorite(featureId))
+    } else if (observed) {
+      dispatch(addFavorite({ feature, camera: observed }))
+    }
+  }
+
+  function handleShare() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  if (!visible) return null
 
   return (
-    <div className={panelClass} role="region" aria-label="Park details">
+    <div className="park-content-wrapper">
       <div className="park-detail-summary">
 
         {/* Hero image with name/country overlay */}
@@ -147,17 +170,21 @@ export function ParkDetailPanel() {
             )}
             <button
               type="button"
-              className="w-9 h-9 flex items-center justify-center rounded-lg border border-accent/20 bg-accent/8 text-[var(--text-muted)] text-base cursor-pointer transition-all duration-150 hover:bg-accent/20 hover:text-[var(--text-secondary)] hover:border-accent/40 flex-shrink-0"
-              aria-label="Save to favourites"
+              className="w-9 h-9 flex items-center justify-center rounded-lg border border-accent/20 bg-accent/8 text-base cursor-pointer transition-all duration-150 hover:bg-accent/20 hover:border-accent/40 flex-shrink-0"
+              style={{ color: isFavorited ? 'var(--accent)' : 'var(--text-muted)' }}
+              aria-label={isFavorited ? 'Remove from favourites' : 'Save to favourites'}
+              onClick={handleSave}
             >
-              ♡
+              {isFavorited ? '♥' : '♡'}
             </button>
             <button
               type="button"
               className="w-9 h-9 flex items-center justify-center rounded-lg border border-accent/20 bg-accent/8 text-[var(--text-muted)] text-base cursor-pointer transition-all duration-150 hover:bg-accent/20 hover:text-[var(--text-secondary)] hover:border-accent/40 flex-shrink-0"
               aria-label="Share"
+              onClick={handleShare}
+              title={copied ? 'Link copied!' : 'Copy share link'}
             >
-              ⤴
+              {copied ? '✓' : '⤴'}
             </button>
           </div>
         </div>

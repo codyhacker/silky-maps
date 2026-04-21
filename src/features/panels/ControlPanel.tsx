@@ -8,6 +8,15 @@ import { fitBounds } from '../map/cameraSlice'
 import { useMapEngine } from '../map/engine/MapEngineContext'
 import { setSelectedFeature } from '../parks/interactionSlice'
 import { setCategoryAndResetDesignation, setDesignation } from '../parks/filterSlice'
+import {
+  setTrailsVisible,
+  setMaxLengthKm,
+  toggleSurface,
+  setDifficulty,
+  setThruHikesOnly,
+  type TrailSurface,
+  type TrailDifficulty,
+} from '../trails/filterSlice'
 import { THEME_LABELS } from '../../shared/constants/dataPalettes'
 import { CATEGORY_OPTIONS, DESIGNATION_OPTIONS } from '../../shared/constants/filters'
 import { UI_THEMES } from '../../shared/constants/uiThemes'
@@ -20,7 +29,7 @@ import type { ParkSearchResult } from '../../shared/types'
 const sectionHeaderBase = clsx(
   'w-full flex justify-between items-center px-3 py-2.5 max-md:py-3.5 max-md:px-4',
   'bg-accent/10 border-0 rounded-lg',
-  'text-[var(--accent-warm-hex)] text-[12px] max-md:text-[13px] font-semibold uppercase tracking-[0.5px]',
+  'text-[var(--accent-warm-hex)] text-[13px] max-md:text-[14px] font-bold tracking-[0.02em]',
   'cursor-pointer transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
   'hover:bg-accent/20 hover:translate-x-0.5 active:scale-[0.98]'
 )
@@ -50,6 +59,16 @@ export function ControlPanel() {
   const selectedBasemap  = useAppSelector(s => s.mapStyle.selectedBasemap)
   const uiMode           = useAppSelector(s => s.mapStyle.uiMode)
   const basemapSync      = useAppSelector(s => s.mapStyle.basemapSync)
+  const trailsVisible    = useAppSelector(s => s.trailsFilter.visible)
+  const trailsMaxLength  = useAppSelector(s => s.trailsFilter.maxLengthKm)
+  const trailsSurfaces   = useAppSelector(s => s.trailsFilter.surfaces)
+  const trailsDifficulty = useAppSelector(s => s.trailsFilter.difficulty)
+  const trailsThruOnly   = useAppSelector(s => s.trailsFilter.thruHikesOnly)
+  // Trails section is hidden entirely on deployments without trails
+  // PMTiles configured — the toggles have no effect there.
+  const trailsAvailable =
+    !!import.meta.env.VITE_TRAILS_PMTILES_URL ||
+    !!import.meta.env.VITE_THRUHIKES_PMTILES_URL
 
   const [collapsed, setCollapsed] = useState(false)
   const [query,     setQuery]     = useState('')
@@ -93,7 +112,7 @@ export function ControlPanel() {
         onClick={handleTitleClick}
       >
         <TitleGlobe size={28} />
-        <span className="text-[20px] font-bold text-gradient-title">SilkyMaps</span>
+        <span className="text-[22px] font-semibold text-gradient-title" style={{ letterSpacing: '-0.01em' }}>silkymaps</span>
         <span className={clsx(
           'ml-auto text-xs text-[var(--text-secondary)] leading-none transition-transform duration-[250ms]',
           'max-md:hidden',
@@ -111,7 +130,7 @@ export function ControlPanel() {
             className={clsx(
               'w-full py-2 pl-2.5 pr-8',
               'bg-surface-3/50 border border-accent/25 rounded-lg',
-              'text-[var(--text-primary)] text-xs font-[system-ui,-apple-system,sans-serif]',
+              'text-[var(--text-primary)] text-xs',
               'outline-none transition-[border-color] duration-200',
               'placeholder:text-[var(--text-muted)]',
               'focus:border-accent/50'
@@ -247,6 +266,151 @@ export function ControlPanel() {
             </div>
           )}
         </div>
+
+        {/* ── Trails ──────────────────────────────────────────────────────────
+             Hiking-route filters. The master `Show trails` toggle turns the
+             whole vector source off so users who want a clean parks-only
+             cartography aren't paying the fetch/parse cost. The remaining
+             controls compose into one Mapbox `filter` expression in
+             selectAugmentationSpec — no fetches happen on filter change.
+             Section is omitted entirely if no trails PMTiles is configured. */}
+        {trailsAvailable && (
+        <div className="mb-3 last:mb-0">
+          <button
+            className={clsx(sectionHeaderBase, sectionsOpen.trails && 'bg-accent/25 !rounded-b-none')}
+            onClick={() => dispatch(toggleSection('trails'))}
+          >
+            <span>Trails</span>
+            <span className="text-sm font-normal opacity-70">{sectionsOpen.trails ? '−' : '+'}</span>
+          </button>
+          {sectionsOpen.trails && (
+            <div className="bg-black/15 rounded-b-lg border-t border-accent/15 animate-[expandDown_0.3s_cubic-bezier(0.16,1,0.3,1)] origin-top pt-5 pb-6 px-4">
+
+              {/* Visibility — primary switch. When off, every trails-* layer is
+                  omitted from the augmentation spec entirely. */}
+              <div>
+                <span className={subLabel}>Visibility</span>
+                <div className="flex bg-black/20 rounded-md p-[3px] gap-0.5">
+                  {[
+                    { value: true,  label: 'Show'  },
+                    { value: false, label: 'Hide' },
+                  ].map(opt => (
+                    <button
+                      key={String(opt.value)}
+                      className={clsx(
+                        'flex-1 py-1.5 px-2',
+                        'bg-transparent border-0 rounded text-[10px] cursor-pointer',
+                        'transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.95]',
+                        trailsVisible === opt.value
+                          ? 'bg-active-gradient text-white shadow-[0_2px_8px_rgba(var(--active-rgb),0.4)]'
+                          : 'text-[var(--text-muted)] hover:bg-accent/20 hover:text-[var(--text-secondary)]'
+                      )}
+                      onClick={() => dispatch(setTrailsVisible(opt.value))}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* All other controls dim/disable when visibility is off — they're
+                  meaningless without trail layers on the map. */}
+              <fieldset
+                className={clsx(
+                  'border-0 m-0 p-0 transition-opacity duration-200',
+                  !trailsVisible && 'opacity-40 pointer-events-none'
+                )}
+                disabled={!trailsVisible}
+              >
+
+                {/* Length cap — null = no cap, otherwise drops trails > Nkm. */}
+                <div style={{ marginTop: '24px' }}>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className={subLabel + ' mb-0'}>Max length</span>
+                    <span className="text-[11px] text-[var(--text-secondary)] font-medium">
+                      {trailsMaxLength == null ? 'Any' : `${trailsMaxLength} km`}
+                    </span>
+                  </div>
+                  <input
+                    type="range" min="0" max="50" step="1"
+                    value={trailsMaxLength == null ? 0 : trailsMaxLength}
+                    onChange={e => {
+                      const n = Number(e.target.value)
+                      dispatch(setMaxLengthKm(n === 0 ? null : n))
+                    }}
+                  />
+                </div>
+
+                {/* Surface chips — multi-select. Empty = "all surfaces". */}
+                <div style={{ marginTop: '24px' }}>
+                  <span className={subLabel}>Surface</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(['paved', 'gravel', 'unpaved'] as TrailSurface[]).map(s => {
+                      const active = trailsSurfaces.includes(s)
+                      return (
+                        <button
+                          key={s}
+                          className={clsx(
+                            chipBase,
+                            active && 'bg-active-gradient border-[var(--active-border)] text-white animate-[chipActivate_0.25s_cubic-bezier(0.16,1,0.3,1)]'
+                          )}
+                          onClick={() => dispatch(toggleSurface(s))}
+                        >
+                          {s.charAt(0).toUpperCase() + s.slice(1)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Difficulty — segmented single-select (any / easy / mod / hard). */}
+                <div style={{ marginTop: '24px' }}>
+                  <span className={subLabel}>Difficulty</span>
+                  <div className="flex bg-black/20 rounded-md p-[3px] gap-0.5">
+                    {(['any', 'easy', 'moderate', 'hard'] as TrailDifficulty[]).map(d => (
+                      <button
+                        key={d}
+                        className={clsx(
+                          'flex-1 py-1.5 px-1',
+                          'bg-transparent border-0 rounded text-[10px] cursor-pointer capitalize',
+                          'transition-all duration-[250ms] ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.95]',
+                          trailsDifficulty === d
+                            ? 'bg-active-gradient text-white shadow-[0_2px_8px_rgba(var(--active-rgb),0.4)]'
+                            : 'text-[var(--text-muted)] hover:bg-accent/20 hover:text-[var(--text-secondary)]'
+                        )}
+                        onClick={() => dispatch(setDifficulty(d))}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Thru-hikes only — small toggle pill. Hides the local trails
+                    layer entirely so only the named long-distance routes
+                    (PCT, AT, GR, Te Araroa…) draw. */}
+                <div style={{ marginTop: '24px' }}>
+                  <button
+                    className={clsx(
+                      'w-full flex items-center justify-between px-3 py-2 rounded-md border text-[11px] cursor-pointer',
+                      'transition-all duration-200',
+                      trailsThruOnly
+                        ? 'border-[var(--active-border)] bg-accent/15 text-[var(--text-secondary)]'
+                        : 'border-accent/25 bg-transparent text-[var(--text-muted)] hover:border-accent/40 hover:text-[var(--text-secondary)]'
+                    )}
+                    onClick={() => dispatch(setThruHikesOnly(!trailsThruOnly))}
+                    aria-pressed={trailsThruOnly}
+                  >
+                    <span>Thru-hikes only</span>
+                    <span className="font-mono">{trailsThruOnly ? 'ON' : 'OFF'}</span>
+                  </button>
+                </div>
+
+              </fieldset>
+            </div>
+          )}
+        </div>
+        )}
 
         {/* ── Map Style ───────────────────────────────────────────────────── */}
         <div className="mb-3 last:mb-0">

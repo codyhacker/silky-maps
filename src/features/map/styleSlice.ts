@@ -6,7 +6,7 @@ interface MapStyleState {
   fillOpacity: number
   selectedBasemap: string
   selectedUiTheme: string
-  uiMode: 'dark' | 'light'
+  uiMode: 'light' | 'dark'
   basemapSync: boolean
 }
 
@@ -15,7 +15,7 @@ const initialState: MapStyleState = {
   fillOpacity: 0.5,
   selectedBasemap: 'earth',
   selectedUiTheme: DEFAULT_UI_THEME_ID,
-  uiMode: 'dark',
+  uiMode: 'light',
   basemapSync: true,
 }
 

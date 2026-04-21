@@ -11,11 +11,25 @@ A personal sandbox for **exploring aesthetic digital cartographic experiences** 
 
 *Mount Rainier National Park, captured at the same camera (pitch 60°, bearing 25°) across the four themes in both modes. The satellite imagery inside the silhouette is pre-stitched and clipped to the polygon at fetch time, so the surrounding basemap repaints with each theme without disturbing the overlay. Re-generate with `node scripts/capture-rainier.mjs` (requires `npm run dev` and Playwright's chromium).*
 
+### Hiking-route overlay
+
+The Wonderland Trail circling Mt Rainier, captured the same way as the parks above but with a trail selected instead of a park. Trails are an optional OSM-derived overlay (separate `.pmtiles`) themed from the same palette, so the casing/halo treatment stays legible across every basemap.
+
+| | Dark | Light |
+|---|---|---|
+| **Sage Forest** | ![Sage Forest dark](docs/screenshots/wonderland-sage-forest-dark.png) | ![Sage Forest light](docs/screenshots/wonderland-sage-forest-light.png) |
+| **Dark Earth** | ![Dark Earth dark](docs/screenshots/wonderland-dark-earth-dark.png) | ![Dark Earth light](docs/screenshots/wonderland-dark-earth-light.png) |
+| **Slate Mist** | ![Slate Mist dark](docs/screenshots/wonderland-slate-mist-dark.png) | ![Slate Mist light](docs/screenshots/wonderland-slate-mist-light.png) |
+| **Botanica** | ![Botanica dark](docs/screenshots/wonderland-botanica-dark.png) | ![Botanica light](docs/screenshots/wonderland-botanica-light.png) |
+
+*Generate with `node scripts/capture-trails.mjs` after running `scripts/build-trails-pmtiles.sh` and hosting the resulting `trails.pmtiles` / `thruhikes.pmtiles` (the trails overlay is optional — when `VITE_TRAILS_PMTILES_URL` is unset, the layers and the Trails control-panel section are omitted entirely).*
+
 ## What's interesting in here
 
 - **A hand-built themable basemap.** Four palettes (Sage Forest, Dark Earth, Slate Mist, Botanica), each with paired dark and light modes, generated from a single `UiPalette` token set. Every UI surface and every map layer (water, landcover, hillshade, contours, roads, labels, fog) reads from the same palette, so swapping themes repaints the entire screen — chrome and cartography — in step.
 - **Polygon-clipped satellite selection overlay.** Clicking a park pre-fetches Mapbox satellite tiles at the highest zoom whose covering grid fits in 4096px, stitches them into a single canvas, and clips the canvas to the park polygon during stitching. The result is a PNG with transparent edges shaped exactly like the silhouette — basemap shows through naturally outside the park, no separate mask layer, no LOD-swap flicker. "Full details" layers a slow orbit tour (90s/revolution) on top.
 - **Whole WDPA in one file.** ~270k polygons served as a single `.pmtiles` archive over HTTP range requests via Mapbox GL v3.21+'s native PMTiles support — no tile server, no `addProtocol` shim. Theming + filtering happen entirely client-side.
+- **OSM hiking-route overlay with elevation-aware tour.** A second `.pmtiles` (built by `scripts/build-trails-pmtiles.sh`: osmium → spatial-join with WDPA → tippecanoe) layers global hiking routes on top of the parks, themed from the same palette so they read as part of the cartography rather than a bolted-on data layer. Selecting a trail opens a panel with a procedurally drawn elevation profile sampled from Mapbox's terrain DEM, then a "Fly along" tour walks the camera tangent to the line via `@turf/along` + `requestAnimationFrame`.
 - **Strict command-pattern for the map.** React components never call Mapbox GL directly; everything routes through `MapEngine.execute(MapCommand)`. Makes it easy to tear apart and re-skin the map without the visual layer leaking everywhere.
 
 ## Quick Start
@@ -86,6 +100,8 @@ npm run build
 |----------|-------------|---------|
 | `VITE_MAPBOX_ACCESS_TOKEN` | Mapbox GL access token | Required |
 | `VITE_PMTILES_URL` | Public URL to the WDPA `.pmtiles` file | `http://localhost:8080/wdpa.pmtiles` |
+| `VITE_TRAILS_PMTILES_URL` | Public URL to the trails `.pmtiles` (optional — trail layers don't render if unset) | unset |
+| `VITE_THRUHIKES_PMTILES_URL` | Public URL to the long-distance routes `.pmtiles` (optional) | unset |
 
 ## How the PMTiles ↔ Mapbox integration works
 
