@@ -28,6 +28,11 @@ export class TrailController {
   private flyAlongLastTs: number | null = null
   private flyAlongSmoothedBearing = 0
   private flyAlongMarker: mapboxgl.Marker | null = null
+  // True once the user has gestured during a fly-along: the camera stops
+  // following the marker (the marker keeps advancing) and any subsequent
+  // restore-on-stop is suppressed so we don't snap them away from where they
+  // navigated.
+  private flyAlongCameraDetached = false
 
   constructor(map: mapboxgl.Map, store: AppStore) {
     this.map = map
@@ -161,6 +166,7 @@ export class TrailController {
     this.flyAlongT = 0
     this.flyAlongLastTs = null
     this.flyAlongSmoothedBearing = this.map.getBearing()
+    this.flyAlongCameraDetached = false
 
     const mapState = this.store.getState().mapStyle
     const palette = getEffectivePalette(getUiTheme(mapState.selectedUiTheme), mapState.uiMode)
@@ -231,7 +237,9 @@ export class TrailController {
       this.flyAlongMarker = null
       this.store.dispatch(setFlyAlongPaused(false))
 
-      const restore = opts.restoreCamera ?? true
+      // If the user took manual camera control during the flythrough, suppress
+      // the restore — they're somewhere they chose and a snap-back is jarring.
+      const restore = (opts.restoreCamera ?? true) && !this.flyAlongCameraDetached
       if (restore && this.preFlyAlongCamera) {
         const snap = this.preFlyAlongCamera
         this.map.easeTo({
@@ -243,13 +251,17 @@ export class TrailController {
         })
       }
       this.preFlyAlongCamera = null
+      this.flyAlongCameraDetached = false
     }
   }
 
   private onFlyAlongInteraction = (e: { originalEvent?: Event }): void => {
+    // Programmatic moves (our own easeTo) fire these too — ignore.
     if (!e.originalEvent) return
-    this.stopFlyAlong({ restoreCamera: false })
-    this.store.dispatch(setFlyAlongActive(false))
+    // Don't stop the flythrough; just hand camera control to the user. The
+    // marker keeps advancing along the trail so they can pan/zoom freely
+    // while still seeing where the hiker is.
+    this.flyAlongCameraDetached = true
   }
 
   private runFlyAlongLoop(): void {
@@ -275,26 +287,28 @@ export class TrailController {
       this.flyAlongLastTs = now
 
       const distKm = this.flyAlongT * this.flyAlongLengthKm
-      const lookAheadKm = Math.min(distKm + 0.15, this.flyAlongLengthKm)
-      const pt    = along(this.flyAlongLine, distKm,      { units: 'kilometers' })
-      const ahead = along(this.flyAlongLine, lookAheadKm, { units: 'kilometers' })
-
+      const pt = along(this.flyAlongLine, distKm, { units: 'kilometers' })
       const [x1, y1] = pt.geometry.coordinates
-      const [x2, y2] = ahead.geometry.coordinates
-      const targetBearing = computeBearingDeg([x1, y1], [x2, y2])
-
-      const delta = ((targetBearing - this.flyAlongSmoothedBearing + 540) % 360) - 180
-      this.flyAlongSmoothedBearing = (this.flyAlongSmoothedBearing + delta * 0.06 + 360) % 360
 
       this.flyAlongMarker?.setLngLat([x1, y1])
 
-      this.map.easeTo({
-        center: [x1, y1],
-        bearing: this.flyAlongSmoothedBearing,
-        pitch: 65,
-        duration: 80,
-        easing: t => t,
-      })
+      if (!this.flyAlongCameraDetached) {
+        const lookAheadKm = Math.min(distKm + 0.15, this.flyAlongLengthKm)
+        const ahead = along(this.flyAlongLine, lookAheadKm, { units: 'kilometers' })
+        const [x2, y2] = ahead.geometry.coordinates
+        const targetBearing = computeBearingDeg([x1, y1], [x2, y2])
+
+        const delta = ((targetBearing - this.flyAlongSmoothedBearing + 540) % 360) - 180
+        this.flyAlongSmoothedBearing = (this.flyAlongSmoothedBearing + delta * 0.06 + 360) % 360
+
+        this.map.easeTo({
+          center: [x1, y1],
+          bearing: this.flyAlongSmoothedBearing,
+          pitch: 65,
+          duration: 80,
+          easing: t => t,
+        })
+      }
 
       this.store.dispatch(setFlyAlongProgress(this.flyAlongT))
 

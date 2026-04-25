@@ -9,29 +9,26 @@ import MapboxWorker from 'mapbox-gl/dist/mapbox-gl-csp-worker?worker'
 
 ;(mapboxgl as unknown as { workerClass: typeof Worker }).workerClass = MapboxWorker as unknown as typeof Worker
 import type { AppStore } from '../../../app/store'
-import { setHoveredFeature, setSelectedFeature } from '../../parks/interactionSlice'
-import { setHoveredTrail, setSelectedTrail } from '../../trails/interactionSlice'
 import { cameraObserved } from '../cameraSlice'
-import type { HoveredFeatureProperties, ParkSearchResult, TrailProperties } from '../../../shared/types'
+import type { ParkSearchResult } from '../../../shared/types'
 import { BASEMAP_OPTIONS } from '../../../shared/constants/basemaps'
 import { getUiTheme, getEffectivePalette, applyUiTheme, buildCustomMapStyle } from '../../../shared/constants/uiThemes'
 import type { MapCommand } from './commands'
 import { StyleController } from './StyleController'
 import { ParkController } from './ParkController'
 import { TrailController } from './TrailController'
-
-// Trail layers we route clicks through (in priority order — primary before
-// casing so the wider hit-target doesn't shadow the actual line).
-const TRAIL_INTERACTIVE_LAYERS = ['trails-primary', 'trails-thru']
+import { registerPointerRouter } from './pointer/registerPointerRouter'
+import { parksLayer } from './pointer/layers/parks'
+import { trailsLayer } from './pointer/layers/trails'
 
 export class MapEngine {
   private map: mapboxgl.Map
   private store: AppStore
-  private hoveredId: string | number | null = null
 
   private style: StyleController
   private parks: ParkController
   private trails: TrailController
+  private unsubPointer: () => void
 
   constructor(container: HTMLDivElement, store: AppStore) {
     this.store = store
@@ -64,7 +61,17 @@ export class MapEngine {
     this.trails = new TrailController(this.map, store)
     this.style = new StyleController(this.map, store, this.parks, initialBasemap.id)
 
-    this.registerMapEvents()
+    this.unsubPointer = registerPointerRouter(this.map, store, [parksLayer, trailsLayer])
+
+    this.map.on('moveend', () => {
+      const { lng, lat } = this.map.getCenter()
+      this.store.dispatch(cameraObserved({
+        center: [lng, lat],
+        zoom: this.map.getZoom(),
+        bearing: this.map.getBearing(),
+        pitch: this.map.getPitch(),
+      }))
+    })
 
     if (import.meta.env.DEV) {
       ;(window as unknown as { __engine?: MapEngine; __store?: AppStore }).__engine = this
@@ -81,6 +88,7 @@ export class MapEngine {
   }
 
   destroy(): void {
+    this.unsubPointer()
     this.trails.destroy()
     this.parks.destroy()
     this.map.remove()
@@ -124,111 +132,4 @@ export class MapEngine {
     }
   }
 
-  // ─── DOM-level map events (dispatch Redux, don't touch controllers) ──────
-
-  private registerMapEvents(): void {
-    // Park hover
-    this.map.on('mousemove', 'parks-fill', (e) => {
-      this.map.getCanvas().style.cursor = 'pointer'
-      if (!e.features?.length) return
-
-      const feature = e.features[0]
-      const id = feature.id
-
-      if (this.hoveredId !== null && this.hoveredId !== id) {
-        this.map.setFeatureState(
-          { source: 'national-parks', sourceLayer: 'geo', id: this.hoveredId },
-          { hover: false }
-        )
-      }
-
-      if (id !== undefined) {
-        this.hoveredId = id
-        this.map.setFeatureState(
-          { source: 'national-parks', sourceLayer: 'geo', id },
-          { hover: true }
-        )
-      }
-
-      this.store.dispatch(setHoveredFeature(feature.properties as HoveredFeatureProperties))
-    })
-
-    this.map.on('mouseleave', 'parks-fill', () => {
-      this.map.getCanvas().style.cursor = ''
-
-      if (this.hoveredId !== null) {
-        this.map.setFeatureState(
-          { source: 'national-parks', sourceLayer: 'geo', id: this.hoveredId },
-          { hover: false }
-        )
-        this.hoveredId = null
-      }
-
-      this.store.dispatch(setHoveredFeature(null))
-    })
-
-    // Trail hover — layer ids may not exist in the live style yet (trails
-    // toggle), so guard each registration.
-    this.map.on('mousemove', (e) => {
-      const trailLayers = TRAIL_INTERACTIVE_LAYERS.filter(id => this.map.getLayer(id))
-      if (trailLayers.length === 0) return
-      const hits = this.map.queryRenderedFeatures(e.point, { layers: trailLayers })
-      if (hits.length > 0) {
-        const id = hits[0].id
-        if (id !== undefined) {
-          this.map.getCanvas().style.cursor = 'pointer'
-          this.trails.setTrailHover(id)
-          this.store.dispatch(setHoveredTrail(id))
-        }
-      } else if (this.store.getState().trailsInteraction.hoveredTrailId !== null) {
-        this.trails.setTrailHover(null)
-        this.store.dispatch(setHoveredTrail(null))
-      }
-    })
-
-    // Click: trails take routing priority over parks because the line-width
-    // hit target is much narrower than the park polygon. Trail click does NOT
-    // clear the park selection (trail-inside-park is the canonical case and
-    // DetailPanel surfaces the second as a tab). Park click DOES clear the trail.
-    this.map.on('click', (e) => {
-      const trailLayers = TRAIL_INTERACTIVE_LAYERS.filter(id => this.map.getLayer(id))
-      const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
-        [e.point.x - 6, e.point.y - 6],
-        [e.point.x + 6, e.point.y + 6],
-      ]
-      const trailHits = trailLayers.length > 0
-        ? this.map.queryRenderedFeatures(bbox, { layers: trailLayers })
-        : []
-      const parkHits = this.map.queryRenderedFeatures(e.point, { layers: ['parks-fill'] })
-
-      let trailDispatched = false
-      for (const f of trailHits) {
-        const id = f.id ?? (f.properties as { osm_id?: string | number })?.osm_id
-        if (id !== undefined && id !== null) {
-          this.store.dispatch(setSelectedTrail({ id, props: f.properties as TrailProperties }))
-          trailDispatched = true
-          break
-        }
-      }
-
-      if (parkHits.length > 0) {
-        this.store.dispatch(setSelectedFeature(parkHits[0].properties as HoveredFeatureProperties))
-      } else if (trailDispatched) {
-        // Trail-only click: leave park selection as-is.
-      } else {
-        this.store.dispatch(setSelectedFeature(null))
-        this.store.dispatch(setSelectedTrail(null))
-      }
-    })
-
-    this.map.on('moveend', () => {
-      const { lng, lat } = this.map.getCenter()
-      this.store.dispatch(cameraObserved({
-        center: [lng, lat],
-        zoom: this.map.getZoom(),
-        bearing: this.map.getBearing(),
-        pitch: this.map.getPitch(),
-      }))
-    })
-  }
 }

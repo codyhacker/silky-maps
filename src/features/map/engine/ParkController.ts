@@ -20,6 +20,7 @@ export class ParkController {
   // ── Selection state (click → mask + satellite overlay) ──────────────────
   private selectedSiteId: string | number | null = null
   private preSelectionCamera: CameraSnapshot | null = null
+  private preSelectionGestureHandler: ((e: { originalEvent?: Event }) => void) | null = null
   private selectionRetry: ((e: { sourceId?: string }) => void) | null = null
   private satelliteAbort: AbortController | null = null
   private satelliteBlobUrl: string | null = null
@@ -104,6 +105,10 @@ export class ParkController {
           bearing: this.map.getBearing(),
           pitch: this.map.getPitch(),
         }
+        // If the user navigates away after selecting, drop the snapshot so
+        // closing the panel doesn't snap them back to where they were before
+        // they ever clicked. Same gesture-detection trick as the tour.
+        this.attachPreSelectionGestureListeners()
       }
       this.selectedSiteId = siteId
     }
@@ -128,6 +133,7 @@ export class ParkController {
   deselectPark(): void {
     this.stopTour({ restoreCamera: false })
     this.clearSelectionOverlay()
+    this.detachPreSelectionGestureListeners()
 
     if (this.preSelectionCamera) {
       const snap = this.preSelectionCamera
@@ -142,9 +148,39 @@ export class ParkController {
     }
   }
 
+  private attachPreSelectionGestureListeners(): void {
+    this.detachPreSelectionGestureListeners()
+    const handler = (e: { originalEvent?: Event }): void => {
+      // Programmatic moves (fitBounds, easeTo) fire these too — ignore them.
+      if (!e.originalEvent) return
+      this.preSelectionCamera = null
+      this.detachPreSelectionGestureListeners()
+    }
+    this.preSelectionGestureHandler = handler
+    this.map.on('dragstart', handler)
+    this.map.on('rotatestart', handler)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.map.on('zoomstart', handler as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.map.on('pitchstart', handler as any)
+  }
+
+  private detachPreSelectionGestureListeners(): void {
+    const h = this.preSelectionGestureHandler
+    if (!h) return
+    this.map.off('dragstart', h)
+    this.map.off('rotatestart', h)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.map.off('zoomstart', h as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.map.off('pitchstart', h as any)
+    this.preSelectionGestureHandler = null
+  }
+
   private clearSelectionOverlay(): void {
     this.cancelSelectionRetry()
     this.clearSelectionOverlayLayers()
+    this.detachPreSelectionGestureListeners()
     this.selectedSiteId = null
   }
 
